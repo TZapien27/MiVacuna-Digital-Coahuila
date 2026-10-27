@@ -101,7 +101,7 @@
     
     <!-- 1. DATOS GENERALES DE LA JORNADA -->
     <div class="tarjeta" id="bloque_datos_generales">
-        <h2>1. Datos Generales de la Jornada <span style="color: #ef4444; font-size: 0.8rem; background: #fee2e2; padding: 2px 6px; border-radius: 4px; float: right;">v15.85</span></h2>
+        <h2>1. Datos Generales de la Jornada. <span style="color: #ef4444; font-size: 0.8rem; background: #fee2e2; padding: 2px 6px; border-radius: 4px; float: right;">v15.85</span></h2>
         
         <fieldset style="border: 1px solid #cbd5e1; padding: 15px; margin-bottom: 15px; border-radius: 6px; background-color: #f8fafc;">
             <legend style="font-weight: bold; color: #0f172a; padding: 0 5px;">Datos del Registrador</legend>
@@ -562,9 +562,59 @@
                 if (secBloqueo) secBloqueo.classList.remove('oculto');
                 
                 const selectEstado = document.getElementById('estado_bloqueo');
-                if (selectEstado && selectEstado.value === "") {
-                    selectEstado.value = 'nuevo';
-                    if (typeof gestionarEstadoBloqueo === 'function') gestionarEstadoBloqueo();
+                const metadatos = document.getElementById('metadatos_bloqueo');
+                const selectorPendientes = document.getElementById('selector_bloqueos_pendientes');
+                const gPregunta = document.getElementById('grupo_pregunta_estado_bloqueo');
+                const nombreCasoInput = document.getElementById('bloqueo_nombre_caso');
+
+                // Detectamos si debemos ocultar los selectores (ya sea porque avanzó a Domicilio o porque viene de un guardado con datos prellenados)
+                const casoYaCargado = (nombreCasoInput && nombreCasoInput.value !== "" && nombreCasoInput.readOnly === true);
+                const estaBloqueado = (dom !== "" || casoYaCargado);
+
+                if (estaBloqueado) {
+                    // OCULTAMOS LAS PREGUNTAS y dejamos solo los datos fijos
+                    if (gPregunta) gPregunta.classList.add('oculto');
+                    if (selectorPendientes) selectorPendientes.classList.add('oculto');
+                    if (metadatos) metadatos.classList.remove('oculto');
+                    
+                    if (nombreCasoInput) nombreCasoInput.readOnly = true;
+                    document.getElementById('bloqueo_fecha_notificacion').readOnly = true;
+                    document.getElementById('bloqueo_fecha_inicio').readOnly = true;
+                    document.getElementById('bloqueo_tipo').disabled = true;
+                } else {
+                    // MODO DE CONFIGURACIÓN INICIAL
+                    if (gPregunta) gPregunta.classList.remove('oculto');
+                    
+                    if (selectEstado) {
+                        if (selectEstado.value === "") {
+                            selectEstado.value = 'nuevo';
+                            if (typeof gestionarEstadoBloqueo === 'function') gestionarEstadoBloqueo();
+                        }
+                        
+                        if (selectEstado.value === 'nuevo') {
+                            if (selectorPendientes) selectorPendientes.classList.add('oculto'); 
+                            if (metadatos) metadatos.classList.remove('oculto');
+                            
+                            if (nombreCasoInput) nombreCasoInput.readOnly = false;
+                            document.getElementById('bloqueo_fecha_notificacion').readOnly = false;
+                            document.getElementById('bloqueo_fecha_inicio').readOnly = false;
+                            document.getElementById('bloqueo_tipo').disabled = false;
+
+                        } else if (selectEstado.value === 'pendiente') {
+                            const listaPendientes = document.getElementById('lista_bloqueos_pendientes');
+                            if (selectorPendientes) selectorPendientes.classList.remove('oculto'); 
+                            
+                            if (listaPendientes && listaPendientes.value !== "") {
+                                if (metadatos) metadatos.classList.remove('oculto');
+                                if (nombreCasoInput) nombreCasoInput.readOnly = true;
+                                document.getElementById('bloqueo_fecha_notificacion').readOnly = true;
+                                document.getElementById('bloqueo_fecha_inicio').readOnly = true;
+                                document.getElementById('bloqueo_tipo').disabled = true;
+                            } else {
+                                if (metadatos) metadatos.classList.add('oculto');
+                            }
+                        }
+                    }
                 }
 
                 const gCasoDom = document.getElementById('grupo_caso_domicilio');
@@ -663,8 +713,19 @@
                     <div class="form-group"><label>Sexo *</label><select id="sexo_${pId}" onchange="calcularCurpSugerida(${pId})"><option value="">-- Seleccione --</option><option value="H">Masculino</option><option value="M">Femenino</option></select></div>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <div class="form-group"><label>Nacimiento *</label><input type="numeric" id="fecha_nacimiento_${pId}" placeholder="DD/MM/AAAA" maxlength="10" oninput="aplicarMascaraFecha(event); procesarEdadP(${pId}); calcularCurpSugerida(${pId});"></div>
-                    <div class="form-group"><label>Estado Nacimiento *</label><select id="estado_nac_${pId}" onchange="calcularCurpSugerida(${pId})"><option value="">-- Seleccione --</option></select></div>
+                <div class="form-group">
+                        <label>Nacimiento *</label>
+                        <input type="numeric" id="fecha_nacimiento_${pId}" placeholder="DD/MM/AAAA" maxlength="10" oninput="aplicarMascaraFecha(event); procesarEdadP(${pId}); calcularCurpSugerida(${pId});">
+                    </div>
+                    <div class="form-group">
+                        <label>Estado Nacimiento *</label>
+                        <!-- Le inyectamos la función para abrir el recuadro "Otro" -->
+                        <select id="estado_nac_${pId}" onchange="if(this.value==='OT'){document.getElementById('estado_nac_otro_${pId}').classList.remove('oculto')}else{document.getElementById('estado_nac_otro_${pId}').classList.add('oculto'); document.getElementById('estado_nac_otro_${pId}').value=''}; calcularCurpSugerida(${pId})">
+                            <option value="">-- Seleccione --</option>
+                        </select>
+                        <!-- Este es el nuevo campo de texto libre que permanecerá oculto hasta elegir 'Otro' -->
+                        <input type="text" id="estado_nac_otro_${pId}" class="oculto" placeholder="Especifique país o lugar" style="margin-top:5px;">
+                    </div>
                 </div>
                 <div class="form-group"><label>CURP Sugerida</label><input type="text" id="curp_${pId}" style="text-transform: uppercase; font-weight:bold;" maxlength="18"></div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
@@ -758,6 +819,9 @@
         
         const selNac = document.getElementById(`estado_nac_${pId}`);
         catEntidades.forEach(val => { selNac.add(new Option(val, val.substring(0,2))); });
+        // Agregamos manualmente la opción "Otro" (le ponemos clave 'OT' para que la detecte el onchange)
+        selNac.add(new Option("Otro / Extranjero", "OT"));
+        
         tomSelectInstances[`estado_nac_${pId}`] = new TomSelect(selNac, { create: false }); 
 
         agregarVacunaAPersona(pId);
@@ -1037,8 +1101,15 @@
             const checkReq = (id) => { 
                 const el = document.getElementById(id); 
                 if(el && el.offsetParent !== null) {
-                    if(!el.value && el.required !== false) { el.classList.add('campo-invalido'); hayErrores = true; }
-                    else if(el.placeholder === "DD/MM/AAAA" && el.value.length !== 10) { el.classList.add('campo-invalido'); hayErrores = true; }
+                    // CORRECCIÓN: Forzamos la validación eliminando la dependencia de la etiqueta HTML 'required'
+                    if(!el.value || String(el.value).trim() === "") { 
+                        el.classList.add('campo-invalido'); 
+                        hayErrores = true; 
+                    }
+                    else if(el.placeholder === "DD/MM/AAAA" && el.value.length !== 10) { 
+                        el.classList.add('campo-invalido'); 
+                        hayErrores = true; 
+                    }
                 }
             };
 
@@ -1077,6 +1148,7 @@
                     if(document.getElementById(`edad_calculada_${pId}`).value === 'Fecha inválida') { document.getElementById(`fecha_nacimiento_${pId}`).classList.add('campo-invalido'); hayErrores = true; }
 
                     if(document.getElementById(`derecho_${pId}`).value === 'OTRA') checkReq(`derecho_otra_${pId}`);
+                    if(document.getElementById(`estado_nac_${pId}`).value === 'OT') checkReq(`estado_nac_otro_${pId}`);
                     if(document.getElementById(`tutor_tipo_${pId}`) && document.getElementById(`tutor_tipo_${pId}`).value === 'Otro parentesco') {
                         checkReq(`tutor_tipo_otro_${pId}`);
                     }
