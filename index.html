@@ -90,6 +90,7 @@
         <button type="button" id="btn_ingresar" class="btn" onclick="validarCredenciales()" style="width: 100%; margin-top: 10px;">Ingresar al Sistema</button>
         <p id="mensaje_login" class="oculto" style="color: #b91c1c; font-weight: bold; margin-top: 15px;"></p>
     </div>
+<div id="aplicacion_principal" class="oculto">
 
     <!-- ENCABEZADO CON LOGOS INSTITUCIONALES -->
     <header class="header-app" style="background-color: white; padding: 10px; border-bottom: 2px solid #e2e8f0;">
@@ -336,6 +337,7 @@
         🔄 Sincronizar Datos Pendientes (0)
     </button>
 </div>
+</div>
 
 <script>
     /* =======================================================
@@ -352,7 +354,61 @@
             localStorage.setItem('censia_dia_actual', hoy);
         }
     })();
+
+    function validarCredenciales() {
+    const user = document.getElementById('login_usuario').value.trim();
+    const pass = document.getElementById('login_password').value.trim();
+    const btn = document.getElementById('btn_ingresar');
+    const msg = document.getElementById('mensaje_login');
     
+    if(!user || !pass) {
+        msg.textContent = "Ingresa usuario y contraseña";
+        msg.classList.remove('oculto');
+        return;
+    }
+    
+    btn.innerHTML = "⏳ Validando credenciales...";
+    btn.disabled = true;
+    msg.classList.add('oculto');
+    
+    // Nota: Aquí quitamos el 'no-cors' para poder leer la respuesta de Google
+    fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'login', usuario: user, password: pass }),
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if(data.status === 'success') {
+            // Guardamos al usuario en la memoria del celular/PC
+            localStorage.setItem('censia_usuario_activo', data.user);
+            
+            // Apagamos la pantalla de login y encendemos la app
+            document.getElementById('pantalla_login').classList.add('oculto');
+            document.getElementById('aplicacion_principal').classList.remove('oculto');
+            
+            // Refrescamos el mapa para que no se vea gris al encenderse de golpe
+            setTimeout(() => {
+                if (typeof mapaInteractivo !== 'undefined' && mapaInteractivo !== null) {
+                    mapaInteractivo.invalidateSize();
+                }
+            }, 300);
+        } else {
+            msg.textContent = data.message || "Credenciales incorrectas.";
+            msg.classList.remove('oculto');
+            btn.innerHTML = "Ingresar al Sistema";
+            btn.disabled = false;
+        }
+    })
+    .catch(error => {
+        console.error(error);
+        msg.textContent = "Error de red. Verifica tu conexión.";
+        msg.classList.remove('oculto');
+        btn.innerHTML = "Ingresar al Sistema";
+        btn.disabled = false;
+    });
+}
+
     /* ==========================================
        VARIABLES GLOBALES Y CATÁLOGOS COMPLETOS
        ========================================== */
@@ -1247,7 +1303,11 @@
                     id_bloqueo: getVal('id_bloqueo'),
                     registrador_nombre: getVal('registrador_nombre'),
                     registrador_institucion: getVal('registrador_institucion'),
-                    lugar_fijo: getVal('lugar_fijo')|| getVal('identificador_barrido')
+                    lugar_fijo: getVal('lugar_fijo')|| getVal('identificador_barrido'),
+                    registrador_nombre: getVal('registrador_nombre'),
+                    registrador_institucion: getVal('registrador_institucion'),
+                    lugar_fijo: getVal('lugar_fijo')|| getVal('identificador_barrido'),
+                    usuario_registro: localStorage.getItem('censia_usuario_activo') || 'Desconocido'
                 },
                 pacientes: []
             };
