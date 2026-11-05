@@ -72,6 +72,25 @@
 </head>
 <body>
 
+    <!-- PANTALLA DE LOGIN -->
+    <div id="pantalla_login" class="tarjeta" style="max-width: 400px; margin: 40px auto; text-align: center;">
+        <h2>🔐 Iniciar Sesión</h2>
+        <p style="color: #64748b; margin-bottom: 20px;">Ingresa tus credenciales para operar la plataforma.</p>
+        
+        <div class="form-group" style="text-align: left;">
+            <label>Usuario</label>
+            <input type="text" id="login_usuario" placeholder="Ej. jperez" style="text-transform: lowercase;">
+        </div>
+        
+        <div class="form-group" style="text-align: left;">
+            <label>Contraseña</label>
+            <input type="password" id="login_password" placeholder="••••••••">
+        </div>
+        
+        <button type="button" id="btn_ingresar" class="btn" onclick="validarCredenciales()" style="width: 100%; margin-top: 10px;">Ingresar al Sistema</button>
+        <p id="mensaje_login" class="oculto" style="color: #b91c1c; font-weight: bold; margin-top: 15px;"></p>
+    </div>
+
     <!-- ENCABEZADO CON LOGOS INSTITUCIONALES -->
     <header class="header-app" style="background-color: white; padding: 10px; border-bottom: 2px solid #e2e8f0;">
         <!-- Contenedor de logos institucionales -->
@@ -87,6 +106,7 @@
             <img src="img/logo MVDC.jpeg" alt="MiVacuna Digital Coahuila" style="height: 60px; width: auto;">
         </div>
     </header>
+    
 
     <div class="contenedor" id="formulario_maestro">
     <!-- MÓDULO DE BÚSQUEDA DE PACIENTES -->
