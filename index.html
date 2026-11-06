@@ -124,7 +124,7 @@
     
     <!-- 1. DATOS GENERALES DE LA JORNADA -->
     <div class="tarjeta" id="bloque_datos_generales">
-        <h2>1. Datos Generales de la Jornada. <span style="color: #ef4444; font-size: 0.8rem; background: #fee2e2; padding: 2px 6px; border-radius: 4px; float: right;">v15.85</span></h2>
+        <h2>1. Datos Generales de la Jornada <span style="color: #ef4444; font-size: 0.8rem; background: #fee2e2; padding: 2px 6px; border-radius: 4px; float: right;">v15.85</span></h2>
         
         <fieldset style="border: 1px solid #cbd5e1; padding: 15px; margin-bottom: 15px; border-radius: 6px; background-color: #f8fafc;">
             <legend style="font-weight: bold; color: #0f172a; padding: 0 5px;">Datos del Registrador</legend>
@@ -358,80 +358,83 @@
     })();
 
     function validarCredenciales() {
-    const user = document.getElementById('login_usuario').value.trim();
-    const pass = document.getElementById('login_password').value.trim();
-    const btn = document.getElementById('btn_ingresar');
-    const msg = document.getElementById('mensaje_login');
-    
-    if(!user || !pass) {
-        msg.textContent = "Ingresa usuario y contraseña";
-        msg.classList.remove('oculto');
-        return;
-    }
-    
-    btn.innerHTML = "⏳ Validando credenciales...";
-    btn.disabled = true;
-    msg.classList.add('oculto');
-    
-    // Nota: Aquí quitamos el 'no-cors' para poder leer la respuesta de Google
-    fetch(GOOGLE_SCRIPT_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'login', usuario: user, password: pass }),
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if(data.status === 'success') {
-            // Guardamos al usuario en la memoria del celular/PC
-            localStorage.setItem('censia_usuario_activo', data.user);
-            
-            // Prellenamos y bloqueamos los campos visuales en el formulario
-            const inputNombre = document.getElementById('registrador_nombre');
-            const inputInst = document.getElementById('registrador_institucion');
-            
-            if (inputNombre) {
-                inputNombre.value = data.nombre_real || data.user;
-                inputNombre.readOnly = true; // Bloquea la edición
-                inputNombre.style.backgroundColor = '#f1f5f9';
-            }
-            if (inputInst) {
-                inputInst.value = data.institucion || '';
-                // Si institución es un campo de texto:
-                inputInst.readOnly = true;
-                inputInst.style.backgroundColor = '#f1f5f9';
-                // (Si fuera un elemento <select>, deberías usar: inputInst.disabled = true; )
-            }
-
-            // Apagamos la pantalla de login y encendemos la app
-            document.getElementById('pantalla_login').classList.add('oculto');
-            document.getElementById('aplicacion_principal').classList.remove('oculto');
-            
-            // Refrescamos el mapa para que no se vea gris al encenderse de golpe
-            setTimeout(() => {
-                if (typeof mapaInteractivo !== 'undefined' && mapaInteractivo !== null) {
-                    mapaInteractivo.invalidateSize();
+        const user = document.getElementById('login_usuario').value.trim();
+        const pass = document.getElementById('login_password').value.trim();
+        const btn = document.getElementById('btn_ingresar');
+        const msg = document.getElementById('mensaje_login');
+        
+        if(!user || !pass) {
+            msg.textContent = "Ingresa usuario y contraseña";
+            msg.classList.remove('oculto');
+            return;
+        }
+        
+        btn.innerHTML = "⏳ Validando credenciales...";
+        btn.disabled = true;
+        msg.classList.add('oculto');
+        
+        fetch(GOOGLE_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'login', usuario: user, password: pass }),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if(data.status === 'success') {
+                localStorage.setItem('censia_usuario_activo', data.user);
+                
+                const inputNombre = document.getElementById('registrador_nombre');
+                const inputInst = document.getElementById('registrador_institucion');
+                
+                if (inputNombre) {
+                    inputNombre.value = data.nombre_real || data.user;
+                    inputNombre.readOnly = true; 
+                    inputNombre.style.backgroundColor = '#f1f5f9';
                 }
-            }, 300);
-        } else {
-            msg.textContent = data.message || "Credenciales incorrectas.";
+                if (inputInst) {
+                    let existeOpcion = Array.from(inputInst.options).some(opt => opt.value === data.institucion);
+                    if (!existeOpcion && data.institucion) {
+                        inputInst.add(new Option(data.institucion, data.institucion));
+                    }
+                    inputInst.value = data.institucion || '';
+                    inputInst.readOnly = true;
+                    inputInst.disabled = true; 
+                    inputInst.style.backgroundColor = '#f1f5f9';
+                }
+
+                document.getElementById('pantalla_login').classList.add('oculto');
+                document.getElementById('aplicacion_principal').classList.remove('oculto');
+                
+                setTimeout(() => {
+                    document.querySelectorAll('.tarjeta-persona').forEach(t => {
+                        const pId = t.id.split('_').pop();
+                        if (typeof evaluarCascadaIMSS === 'function') evaluarCascadaIMSS(pId);
+                    });
+
+                    if (typeof mapaInteractivo !== 'undefined' && mapaInteractivo !== null) {
+                        mapaInteractivo.invalidateSize();
+                    }
+                }, 300);
+            } else {
+                msg.textContent = data.message || "Credenciales incorrectas.";
+                msg.classList.remove('oculto');
+                btn.innerHTML = "Ingresar al Sistema";
+                btn.disabled = false;
+            }
+        })
+        .catch(error => {
+            console.error(error);
+            msg.textContent = "Error de red. Verifica tu conexión.";
             msg.classList.remove('oculto');
             btn.innerHTML = "Ingresar al Sistema";
             btn.disabled = false;
-        }
-    })
-    .catch(error => {
-        console.error(error);
-        msg.textContent = "Error de red. Verifica tu conexión.";
-        msg.classList.remove('oculto');
-        btn.innerHTML = "Ingresar al Sistema";
-        btn.disabled = false;
-    });
-}
+        });
+    }
 
     /* ==========================================
        VARIABLES GLOBALES Y CATÁLOGOS COMPLETOS
        ========================================== */
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx6sx3XIaysJVlK9bh939hre1c9tiSBTpBAtbL43Jy-0NZSTLU70yT_XZ3ilVmqHcKG/exec";
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIxoAh3uyrJ5EAywyIuYPNg3RwviuSzIWceNbUF4QOZtKDwk0swvEe2lpXok04Fkxt/exec";
     
     let personaId = 0; let vacunaId = 0;  
     let mapaInteractivo = null; let chincheta = null;
@@ -595,6 +598,27 @@
         const sNegEl = document.getElementById('situacion_negocio');
 
         const tAct = tActEl ? tActEl.value : "";
+        // REORDENAMIENTO DINÁMICO DE PANTALLA
+        const formMaestro = document.getElementById('formulario_maestro');
+        const bDom = document.getElementById('bloque_domicilio');
+        const bMapa = document.getElementById('bloque_mapa');
+        const bCenso = document.getElementById('bloque_censo');
+        const nodoCierre = document.getElementById('nodo_cierre_bloqueo');
+        
+        if (formMaestro && bDom && bMapa && bCenso) {
+            if (tAct === 'modulo_fijo') {
+                // Orden: Personas -> Domicilio -> Mapa
+                formMaestro.insertBefore(bCenso, bDom);
+                formMaestro.insertBefore(bDom, bMapa);
+                formMaestro.insertBefore(bMapa, nodoCierre);
+            } else {
+                // Orden: Domicilio -> Mapa -> Personas
+                formMaestro.insertBefore(bDom, bMapa);
+                formMaestro.insertBefore(bMapa, bCenso);
+                formMaestro.insertBefore(bCenso, nodoCierre);
+            }
+        }
+    }
         const dom = domEl ? domEl.value : "";
         const sDom = sDomEl ? sDomEl.value : "";
         const sNeg = sNegEl ? sNegEl.value : "";
@@ -786,34 +810,6 @@
         }
         else divCierre.classList.add('oculto');
     }
-
-    function evaluarCascadaIMSS(pId) {
-    // Buscamos a qué institución pertenece el usuario logueado
-    const inputInst = document.getElementById('registrador_institucion');
-    const institucion = inputInst ? inputInst.value.toUpperCase() : '';
-    
-    // Ubicamos los campos que deben aparecer/desaparecer
-    const bloqueImss = document.getElementById(`bloque_clinico_imss_${pId}`);
-    const nssInput = document.getElementById(`nss_afiliacion_${pId}`);
-
-    if (bloqueImss && nssInput) {
-        // Si la institución del operador incluye la palabra IMSS (Ordinario o Bienestar)
-        if (institucion.includes('IMSS')) {
-            bloqueImss.style.display = 'block';
-            nssInput.required = true; // Fuerza a que no se pueda guardar vacío
-        } else {
-            bloqueImss.style.display = 'none';
-            nssInput.required = false;
-            nssInput.value = '';
-            
-            // Limpiamos los campos ocultos para que no viajen datos fantasma
-            const peso = document.getElementById(`peso_kg_${pId}`);
-            const talla = document.getElementById(`talla_cm_${pId}`);
-            if (peso) peso.value = '';
-            if (talla) talla.value = '';
-        }
-    }
-}
 
     function agregarPersona() {
         personaId++; const pId = personaId;
@@ -1843,27 +1839,38 @@
     }
 
     function evaluarCascadaIMSS(pId) {
-        const instRegistrador = document.getElementById('registrador_institucion') ? document.getElementById('registrador_institucion').value : "";
-        const derPaciente = document.getElementById(`derecho_${pId}`).value.toUpperCase();
+        const inputInst = document.getElementById('registrador_institucion');
+        const institucion = inputInst ? inputInst.value.toUpperCase() : "";
+        const selectDerecho = document.getElementById(`derecho_${pId}`);
+        const derPaciente = selectDerecho ? selectDerecho.value.toUpperCase() : "";
+        
         const bloqueImss = document.getElementById(`bloque_clinico_imss_${pId}`);
         const inputNss = document.getElementById(`nss_afiliacion_${pId}`);
         const labelNss = document.getElementById(`label_nss_${pId}`);
 
-        if (instRegistrador === 'IMSS') {
-            bloqueImss.style.display = 'block';
-            if (derPaciente.includes('IMSS')) {
-                inputNss.required = true;
-                labelNss.innerHTML = 'NSS + Agregado Médico <span style="color:red; font-size:0.8em;">* Oblig.</span>';
+        if (bloqueImss && inputNss) {
+            // Si el REGISTRADOR pertenece al IMSS (Ordinario o Bienestar)
+            if (institucion.includes('IMSS')) {
+                bloqueImss.style.display = 'block';
+                
+                // Evaluamos además si el PACIENTE es derechohabiente del IMSS
+                if (derPaciente.includes('IMSS')) {
+                    inputNss.required = true;
+                    if(labelNss) labelNss.innerHTML = 'NSS + Agregado Médico <span style="color:red; font-size:0.8em;">* Oblig.</span>';
+                } else {
+                    inputNss.required = false;
+                    if(labelNss) labelNss.innerHTML = 'NSS + Agregado Médico <span style="color:gray; font-size:0.8em;">(Opcional)</span>';
+                }
             } else {
+                // Si el registrador no es del IMSS, se oculta todo y se limpia
+                bloqueImss.style.display = 'none';
                 inputNss.required = false;
-                labelNss.innerHTML = 'NSS + Agregado Médico <span style="color:gray; font-size:0.8em;">(Opcional)</span>';
+                inputNss.value = "";
+                const peso = document.getElementById(`peso_kg_${pId}`);
+                const talla = document.getElementById(`talla_cm_${pId}`);
+                if (peso) peso.value = "";
+                if (talla) talla.value = "";
             }
-        } else {
-            bloqueImss.style.display = 'none';
-            inputNss.required = false;
-            inputNss.value = "";
-            document.getElementById(`peso_kg_${pId}`).value = "";
-            document.getElementById(`talla_cm_${pId}`).value = "";
         }
     }
 
