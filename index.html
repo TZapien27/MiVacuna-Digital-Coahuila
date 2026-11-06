@@ -385,6 +385,23 @@
             // Guardamos al usuario en la memoria del celular/PC
             localStorage.setItem('censia_usuario_activo', data.user);
             
+            // Prellenamos y bloqueamos los campos visuales en el formulario
+            const inputNombre = document.getElementById('registrador_nombre');
+            const inputInst = document.getElementById('registrador_institucion');
+            
+            if (inputNombre) {
+                inputNombre.value = data.nombre_real || data.user;
+                inputNombre.readOnly = true; // Bloquea la edición
+                inputNombre.style.backgroundColor = '#f1f5f9';
+            }
+            if (inputInst) {
+                inputInst.value = data.institucion || '';
+                // Si institución es un campo de texto:
+                inputInst.readOnly = true;
+                inputInst.style.backgroundColor = '#f1f5f9';
+                // (Si fuera un elemento <select>, deberías usar: inputInst.disabled = true; )
+            }
+
             // Apagamos la pantalla de login y encendemos la app
             document.getElementById('pantalla_login').classList.add('oculto');
             document.getElementById('aplicacion_principal').classList.remove('oculto');
@@ -769,6 +786,34 @@
         }
         else divCierre.classList.add('oculto');
     }
+
+    function evaluarCascadaIMSS(pId) {
+    // Buscamos a qué institución pertenece el usuario logueado
+    const inputInst = document.getElementById('registrador_institucion');
+    const institucion = inputInst ? inputInst.value.toUpperCase() : '';
+    
+    // Ubicamos los campos que deben aparecer/desaparecer
+    const bloqueImss = document.getElementById(`bloque_clinico_imss_${pId}`);
+    const nssInput = document.getElementById(`nss_afiliacion_${pId}`);
+
+    if (bloqueImss && nssInput) {
+        // Si la institución del operador incluye la palabra IMSS (Ordinario o Bienestar)
+        if (institucion.includes('IMSS')) {
+            bloqueImss.style.display = 'block';
+            nssInput.required = true; // Fuerza a que no se pueda guardar vacío
+        } else {
+            bloqueImss.style.display = 'none';
+            nssInput.required = false;
+            nssInput.value = '';
+            
+            // Limpiamos los campos ocultos para que no viajen datos fantasma
+            const peso = document.getElementById(`peso_kg_${pId}`);
+            const talla = document.getElementById(`talla_cm_${pId}`);
+            if (peso) peso.value = '';
+            if (talla) talla.value = '';
+        }
+    }
+}
 
     function agregarPersona() {
         personaId++; const pId = personaId;
