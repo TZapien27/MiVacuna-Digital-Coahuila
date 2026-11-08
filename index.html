@@ -381,8 +381,10 @@
         .then(response => response.json())
         .then(data => {
             if(data.status === 'success') {
+                // Guardamos al usuario en la memoria
                 localStorage.setItem('censia_usuario_activo', data.user);
                 
+                // Prellenamos y bloqueamos los campos visuales en el formulario
                 const inputNombre = document.getElementById('registrador_nombre');
                 const inputInst = document.getElementById('registrador_institucion');
                 
@@ -392,19 +394,23 @@
                     inputNombre.style.backgroundColor = '#f1f5f9';
                 }
                 if (inputInst) {
+                    // Si Sheets devuelve una institución que no está en la lista exacta, la forzamos
                     let existeOpcion = Array.from(inputInst.options).some(opt => opt.value === data.institucion);
                     if (!existeOpcion && data.institucion) {
                         inputInst.add(new Option(data.institucion, data.institucion));
                     }
+                    
                     inputInst.value = data.institucion || '';
                     inputInst.readOnly = true;
                     inputInst.disabled = true; 
                     inputInst.style.backgroundColor = '#f1f5f9';
                 }
 
+                // Apagamos la pantalla de login y encendemos la app
                 document.getElementById('pantalla_login').classList.add('oculto');
                 document.getElementById('aplicacion_principal').classList.remove('oculto');
                 
+                // Refrescamos el mapa y despertamos la regla del IMSS
                 setTimeout(() => {
                     document.querySelectorAll('.tarjeta-persona').forEach(t => {
                         const pId = t.id.split('_').pop();
@@ -598,6 +604,10 @@
         const sNegEl = document.getElementById('situacion_negocio');
 
         const tAct = tActEl ? tActEl.value : "";
+        const dom = domEl ? domEl.value : "";
+        const sDom = sDomEl ? sDomEl.value : "";
+        const sNeg = sNegEl ? sNegEl.value : "";
+
         // REORDENAMIENTO DINÁMICO DE PANTALLA
         const formMaestro = document.getElementById('formulario_maestro');
         const bDom = document.getElementById('bloque_domicilio');
@@ -607,21 +617,15 @@
         
         if (formMaestro && bDom && bMapa && bCenso) {
             if (tAct === 'modulo_fijo') {
-                // Orden: Personas -> Domicilio -> Mapa
                 formMaestro.insertBefore(bCenso, bDom);
                 formMaestro.insertBefore(bDom, bMapa);
                 formMaestro.insertBefore(bMapa, nodoCierre);
             } else {
-                // Orden: Domicilio -> Mapa -> Personas
                 formMaestro.insertBefore(bDom, bMapa);
                 formMaestro.insertBefore(bMapa, bCenso);
                 formMaestro.insertBefore(bCenso, nodoCierre);
             }
         }
-    }
-        const dom = domEl ? domEl.value : "";
-        const sDom = sDomEl ? sDomEl.value : "";
-        const sNeg = sNegEl ? sNegEl.value : "";
 
         // 2. Ocultar todos los bloques dependientes por defecto
         const ids = [
@@ -648,10 +652,6 @@
             const elRef = document.getElementById('grupo_ref_modulo_fijo');
             if (elRef) elRef.classList.remove('oculto');
 
-            const bDom = document.getElementById('bloque_domicilio');
-            const bCenso = document.getElementById('bloque_censo');
-            const bMapa = document.getElementById('bloque_mapa');
-
             if (bDom) bDom.classList.remove('oculto');
             if (bCenso) bCenso.classList.remove('oculto');
             if (bMapa) bMapa.classList.remove('oculto');
@@ -661,10 +661,8 @@
             }
         } 
         else if (tAct === 'barrido' || tAct === 'bloqueo') {
-            const bDom = document.getElementById('bloque_domicilio');
             const gLugarFijo = document.getElementById('grupo_lugar_fijo');
             const gDomVis = document.getElementById('grupo_domicilio_visitado');
-            const bMapa = document.getElementById('bloque_mapa');
 
             if (bDom) bDom.classList.remove('oculto');
             if (gLugarFijo) gLugarFijo.classList.remove('oculto');
@@ -686,12 +684,10 @@
                 const gPregunta = document.getElementById('grupo_pregunta_estado_bloqueo');
                 const nombreCasoInput = document.getElementById('bloqueo_nombre_caso');
 
-                // Detectamos si debemos ocultar los selectores (ya sea porque avanzó a Domicilio o porque viene de un guardado con datos prellenados)
                 const casoYaCargado = (nombreCasoInput && nombreCasoInput.value !== "" && nombreCasoInput.readOnly === true);
                 const estaBloqueado = (dom !== "" || casoYaCargado);
 
                 if (estaBloqueado) {
-                    // OCULTAMOS LAS PREGUNTAS y dejamos solo los datos fijos
                     if (gPregunta) gPregunta.classList.add('oculto');
                     if (selectorPendientes) selectorPendientes.classList.add('oculto');
                     if (metadatos) metadatos.classList.remove('oculto');
@@ -701,7 +697,6 @@
                     document.getElementById('bloqueo_fecha_inicio').readOnly = true;
                     document.getElementById('bloqueo_tipo').disabled = true;
                 } else {
-                    // MODO DE CONFIGURACIÓN INICIAL
                     if (gPregunta) gPregunta.classList.remove('oculto');
                     
                     if (selectEstado) {
@@ -735,24 +730,23 @@
                         }
                     }
                 }
-
-                const gCasoDom = document.getElementById('grupo_caso_domicilio');
-                if (dom === 'casa' && gCasoDom) gCasoDom.classList.remove('oculto');
             }
 
-            // Evaluación de sub-niveles de domicilio
-            if (dom === 'casa') {
-                const gSitDom = document.getElementById('grupo_situacion_domicilio');
-                if (gSitDom) gSitDom.classList.remove('oculto');
-            } else if (dom === 'negocio') {
-                const gSitNeg = document.getElementById('grupo_situacion_negocio');
-                if (gSitNeg) gSitNeg.classList.remove('oculto');
-            }
+            const gCasoDom = document.getElementById('grupo_caso_domicilio');
+            if (dom === 'casa' && gCasoDom) gCasoDom.classList.remove('oculto');
+        }
+
+        // Evaluación de sub-niveles de domicilio
+        if (dom === 'casa') {
+            const gSitDom = document.getElementById('grupo_situacion_domicilio');
+            if (gSitDom) gSitDom.classList.remove('oculto');
+        } else if (dom === 'negocio') {
+            const gSitNeg = document.getElementById('grupo_situacion_negocio');
+            if (gSitNeg) gSitNeg.classList.remove('oculto');
         }
 
         // 4. Validación de apertura del censo de personas
         let censoHabilitado = (sDom === 'CN' || sDom === 'SN_REG' || sNeg === 'N_CON' || tAct === 'modulo_fijo');
-        const bCenso = document.getElementById('bloque_censo');
         
         if (censoHabilitado) {
             if (bCenso) bCenso.classList.remove('oculto');
@@ -799,7 +793,7 @@
 
         window.scrollTo({ top: scrollY, behavior: 'instant' });
     }
-
+    
     function evaluarCierreBloqueo() {
         const resp = document.getElementById('ultimo_registro_bloqueo').value;
         const divCierre = document.getElementById('campos_cierre_final');
