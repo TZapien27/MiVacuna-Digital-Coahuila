@@ -383,7 +383,8 @@
             if(data.status === 'success') {
                 // Guardamos al usuario en la memoria
                 localStorage.setItem('censia_usuario_activo', data.user);
-                
+                localStorage.setItem('censia_jurisdiccion_activa', data.jurisdiccion || ''); // <-- NUEVA
+
                 // Prellenamos y bloqueamos los campos visuales en el formulario
                 const inputNombre = document.getElementById('registrador_nombre');
                 const inputInst = document.getElementById('registrador_institucion');
@@ -405,6 +406,31 @@
                     inputInst.disabled = true; 
                     inputInst.style.backgroundColor = '#f1f5f9';
                 }
+                // BLINDAJE DE JURISDICCIÓN
+                const inputJuris = document.getElementById('jurisdiccion');
+                if (inputJuris && data.jurisdiccion) {
+                    const tsJuris = tomSelectInstances['jurisdiccion'];
+                    
+                    if (data.jurisdiccion !== 'ESTATAL') {
+                        // Si es jurisdiccional, forzamos el valor y bloqueamos el selector
+                        if (tsJuris) {
+                            tsJuris.addOption({value: data.jurisdiccion, text: data.jurisdiccion});
+                            tsJuris.setValue(data.jurisdiccion);
+                            tsJuris.disable(); // El usuario no podrá cambiarlo
+                        } else {
+                            inputJuris.value = data.jurisdiccion;
+                            inputJuris.disabled = true;
+                        }
+                        // Disparamos la cascada de municipios (función que crearemos en el paso 4)
+                        if (typeof filtrarMunicipiosPorJurisdiccion === 'function') {
+                            filtrarMunicipiosPorJurisdiccion(data.jurisdiccion);
+                        }
+                    } else {
+                        // Si es nivel Estatal, lo dejamos habilitado para que elija libremente
+                        if (tsJuris) tsJuris.enable();
+                        else inputJuris.disabled = false;
+                    }
+                }
 
                 // Apagamos la pantalla de login y encendemos la app
                 document.getElementById('pantalla_login').classList.add('oculto');
@@ -420,6 +446,8 @@
                     if (typeof mapaInteractivo !== 'undefined' && mapaInteractivo !== null) {
                         mapaInteractivo.invalidateSize();
                     }
+                    // <-- AHORA SÍ, YA QUE SABEMOS QUIÉN ES, DESCARGAMOS EL MAPA
+                    if (typeof cargarHistorialGpsRemoto === 'function') cargarHistorialGpsRemoto();
                 }, 300);
             } else {
                 msg.textContent = data.message || "Credenciales incorrectas.";
@@ -1060,7 +1088,7 @@
         actualizarCoordenadasPantalla(DEFAULT_LAT, DEFAULT_LON);
         chincheta.on('dragend', e => actualizarCoordenadasPantalla(e.target.getLatLng().lat, e.target.getLatLng().lng));
         mapaInteractivo.on('click', e => { chincheta.setLatLng(e.latlng); actualizarCoordenadasPantalla(e.latlng.lat, e.latlng.lng); });
-        cargarHistorialGpsRemoto();
+        //cargarHistorialGpsRemoto();
         
         // CORRECCIÓN MAPA BLANCO: Forzar recálculo de dimensiones
         setTimeout(() => {
@@ -1712,9 +1740,17 @@
     async function cargarHistorialGpsRemoto() {
         if (!mapaInteractivo) return;
 
-        // 1. OBTENEMOS LA JURISDICCIÓN SELECCIONADA ACTUALMENTE EN EL MENÚ
+        async function cargarHistorialGpsRemoto() {
+        if (!mapaInteractivo) return;
+
+        // 1. LEER QUIÉN ESTÁ LOGUEADO
+        const jurisUsuario = localStorage.getItem('censia_jurisdiccion_activa') || "";
         const selectJurisdiccion = document.getElementById('jurisdiccion');
-        const jurisSeleccionada = selectJurisdiccion ? selectJurisdiccion.value.trim().toUpperCase() : "";
+        const jurisSelect = selectJurisdiccion ? selectJurisdiccion.value.trim().toUpperCase() : "";
+
+        // REGLA: Si el usuario es ESTATAL, el filtro será lo que elija en el menú desplegable.
+        // Si no es estatal, forzamos su propia jurisdicción (JS8, JS1, etc.) pase lo que pase.
+        const filtroJurisdiccion = (jurisUsuario === 'ESTATAL') ? jurisSelect : jurisUsuario;
 
         try {
             const url = `${GOOGLE_SCRIPT_URL}?action=historial_gps`;
@@ -1724,14 +1760,14 @@
             if (!puntos || puntos.length === 0) return;
 
             puntos.forEach(p => {
-                // 2. EL FILTRO: Si el punto tiene jurisdicción y no coincide con la elegida, lo ignoramos por completo
+                // 2. EL FILTRO ESTRICTO
                 if (p.jurisdiccion) {
                     const jurisPunto = p.jurisdiccion.toString().trim().toUpperCase();
-                    if (jurisSeleccionada !== "" && jurisPunto !== jurisSeleccionada) {
-                        return; // Salta al siguiente punto sin dibujarlo (ahorra muchísima memoria RAM)
+                    if (filtroJurisdiccion !== "" && jurisPunto !== filtroJurisdiccion) {
+                        return; // Ignora los puntos de otras jurisdicciones
                     }
                 }
-
+                
                 if(p.lat && p.lon) {
                     let esCasoIndice = (p.caso_indice === 'SI');
                     
