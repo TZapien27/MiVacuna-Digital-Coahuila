@@ -1740,9 +1740,6 @@
     async function cargarHistorialGpsRemoto() {
         if (!mapaInteractivo) return;
 
-        async function cargarHistorialGpsRemoto() {
-        if (!mapaInteractivo) return;
-
         // 1. LEER QUIÉN ESTÁ LOGUEADO
         const jurisUsuario = localStorage.getItem('censia_jurisdiccion_activa') || "";
         const selectJurisdiccion = document.getElementById('jurisdiccion');
@@ -1767,7 +1764,7 @@
                         return; // Ignora los puntos de otras jurisdicciones
                     }
                 }
-                
+
                 if(p.lat && p.lon) {
                     let esCasoIndice = (p.caso_indice === 'SI');
                     
@@ -1775,7 +1772,6 @@
                     let bgFondo = esCasoIndice ? 'rgba(220, 38, 38, 0.9)' : 'rgba(100, 116, 139, 0.45)'; 
                     let colorBorde = esCasoIndice ? '#7f1d1d' : 'rgba(100, 116, 139, 0.8)';
                     let tamanio = esCasoIndice ? 18 : 14;
-                    let zIndexOffset = esCasoIndice ? 1000 : 0;
                     
                     const sit = (p.situacion || "").toString().trim().toUpperCase();
                     const dom = (p.domicilio || "").toString().trim().toUpperCase();
@@ -1814,7 +1810,6 @@
                         iconAnchor: [tamanio/2, tamanio/2]
                     });
 
-                    // GENERADOR DE FECHA CORTA (DD/MM/YY)
                     let fechaCorta = "S/D";
                     if (p.fecha_actividad) {
                         let partesFecha = p.fecha_actividad.split('/');
@@ -1825,7 +1820,6 @@
                         }
                     }
 
-                    // --- NUEVO RECUADRO UNIFICADO ---
                     let htmlPopup = `
                         <div style="font-family: sans-serif; min-width: 230px;">
                             <h4 style="margin: 0 0 8px 0; color: ${esCasoIndice ? '#dc2626' : '#0f172a'}; border-bottom: 2px solid ${esCasoIndice ? '#dc2626' : '#3b82f6'}; padding-bottom: 4px; font-size: 1.1em;">
