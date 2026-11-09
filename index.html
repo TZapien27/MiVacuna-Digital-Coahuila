@@ -410,23 +410,32 @@
                 const inputJuris = document.getElementById('jurisdiccion');
                 if (inputJuris && data.jurisdiccion) {
                     const tsJuris = tomSelectInstances['jurisdiccion'];
+                    const jurisDB = data.jurisdiccion;
                     
-                    if (data.jurisdiccion !== 'ESTATAL') {
-                        // Si es jurisdiccional, forzamos el valor y bloqueamos el selector
-                        if (tsJuris) {
-                            tsJuris.addOption({value: data.jurisdiccion, text: data.jurisdiccion});
-                            tsJuris.setValue(data.jurisdiccion);
-                            tsJuris.disable(); // El usuario no podrá cambiarlo
+                    if (jurisDB.toUpperCase() !== 'ESTATAL') {
+                        // Busca la coincidencia exacta en el catálogo ignorando mayúsculas/minúsculas
+                        let jurisExacta = "";
+                        if (typeof mapaJurisMunicipio !== 'undefined') {
+                            jurisExacta = Object.keys(mapaJurisMunicipio).find(k => k.toUpperCase() === jurisDB.toUpperCase()) || jurisDB;
                         } else {
-                            inputJuris.value = data.jurisdiccion;
+                            jurisExacta = jurisDB;
+                        }
+
+                        if (tsJuris) {
+                            if (!tsJuris.options[jurisExacta]) tsJuris.addOption({value: jurisExacta, text: jurisExacta});
+                            tsJuris.setValue(jurisExacta);
+                            tsJuris.disable(); // Bloqueamos para que no lo cambie
+                        } else {
+                            inputJuris.value = jurisExacta;
                             inputJuris.disabled = true;
                         }
-                        // Disparamos la cascada de municipios (función que crearemos en el paso 4)
+                        
+                        // Disparamos la cascada de municipios
                         if (typeof filtrarMunicipiosPorJurisdiccion === 'function') {
-                            filtrarMunicipiosPorJurisdiccion(data.jurisdiccion);
+                            filtrarMunicipiosPorJurisdiccion(jurisExacta);
                         }
                     } else {
-                        // Si es nivel Estatal, lo dejamos habilitado para que elija libremente
+                        // Si es ESTATAL, lo dejamos libre
                         if (tsJuris) tsJuris.enable();
                         else inputJuris.disabled = false;
                     }
@@ -485,10 +494,37 @@
 
     window.onload = function() {
         poblarCatalogosGenerales();
-        document.querySelectorAll('.select-buscable').forEach(el => { tomSelectInstances[el.id] = new TomSelect(el, { create: false }); });
-        document.querySelectorAll('.guardar-cache').forEach(el => { el.addEventListener('change', (e) => localStorage.setItem(`censia_${e.target.id}`, e.target.value)); });
+        
+        // 1. Inicializar los selectores buscables
+        document.querySelectorAll('.select-buscable').forEach(el => { 
+            tomSelectInstances[el.id] = new TomSelect(el, { create: false }); 
+        });
+
+        // 2. ACTIVAR LA CASCADA DINÁMICA DE JURISDICCIÓN -> MUNICIPIO -> AGEB
+        if (tomSelectInstances['jurisdiccion']) {
+            tomSelectInstances['jurisdiccion'].on('change', function(val) {
+                if (typeof filtrarMunicipiosPorJurisdiccion === 'function') {
+                    filtrarMunicipiosPorJurisdiccion(val);
+                }
+            });
+        }
+        
+        if (tomSelectInstances['municipio']) {
+            tomSelectInstances['municipio'].on('change', function(val) {
+                if (typeof filtrarAGEBsPorMunicipio === 'function') {
+                    filtrarAGEBsPorMunicipio(val);
+                }
+            });
+        }
+
+        // 3. Resto de tu configuración original (caché, mapa, lógica, sincronización)
+        document.querySelectorAll('.guardar-cache').forEach(el => { 
+            el.addEventListener('change', (e) => localStorage.setItem(`censia_${e.target.id}`, e.target.value)); 
+        });
+        
         cargarCacheLocal();
         inicializarMapaDefecto();
+        
         setTimeout(() => {
             evaluarFlujoLogico();
         }, 100);
@@ -2277,6 +2313,53 @@ function cargarRegistroParaEdicion(idEdicion) {
     } catch (error) {
         alert("Hubo un error al intentar cargar el registro. Por favor, abre las herramientas de desarrollador (F12) para ver el detalle.");
         console.error("Error en cargarRegistroParaEdicion:", error);
+    }
+}
+
+function filtrarMunicipiosPorJurisdiccion(jurisSeleccionada) {
+    const tsMun = tomSelectInstances['municipio'];
+    const tsAgeb = tomSelectInstances['ageb'];
+    
+    if (!tsMun) return;
+
+    // 1. Vaciamos las listas inferiores
+    tsMun.clearOptions();
+    tsMun.clear();
+    if (tsAgeb) {
+        tsAgeb.clearOptions();
+        tsAgeb.clear();
+    }
+
+    // 2. Si es una jurisdicción específica, cargamos solo sus municipios
+    if (jurisSeleccionada && mapaJurisMunicipio[jurisSeleccionada]) {
+        mapaJurisMunicipio[jurisSeleccionada].forEach(mun => {
+            tsMun.addOption({value: mun, text: mun});
+        });
+    } 
+    // 3. Si es ESTATAL o está vacío, cargamos todos los 38 municipios
+    else if (jurisSeleccionada === 'ESTATAL' || jurisSeleccionada === '') {
+        const todosLosMunicipios = Object.values(mapaJurisMunicipio).flat();
+        todosLosMunicipios.forEach(mun => {
+            tsMun.addOption({value: mun, text: mun});
+        });
+    }
+}
+
+function filtrarAGEBsPorMunicipio(munSeleccionado) {
+    const tsAgeb = tomSelectInstances['ageb'];
+    if (!tsAgeb) return;
+
+    tsAgeb.clearOptions();
+    tsAgeb.clear();
+
+    if (munSeleccionado && mapaMunicipioAGEB[munSeleccionado]) {
+        // Si el municipio tiene AGEBs mapeados (ej. Saltillo), los cargamos
+        mapaMunicipioAGEB[munSeleccionado].forEach(ageb => {
+            tsAgeb.addOption({value: ageb, text: ageb});
+        });
+    } else {
+        // Si es otro municipio sin AGEBs en catálogo, forzamos a que solo aparezca "Otro"
+        tsAgeb.addOption({value: "Otro", text: "Otro"});
     }
 }
 
