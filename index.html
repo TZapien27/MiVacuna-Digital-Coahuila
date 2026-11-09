@@ -358,148 +358,175 @@
     })();
 
     function validarCredenciales() {
-        const user = document.getElementById('login_usuario').value.trim();
-        const pass = document.getElementById('login_password').value.trim();
-        const btn = document.getElementById('btn_ingresar');
-        const msg = document.getElementById('mensaje_login');
-        
-        if(!user || !pass) {
-            msg.textContent = "Ingresa usuario y contraseña";
-            msg.classList.remove('oculto');
-            return;
-        }
-        
-        btn.innerHTML = "⏳ Validando credenciales...";
-        btn.disabled = true;
-        msg.classList.add('oculto');
-        
-        fetch(GOOGLE_SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify({ action: 'login', usuario: user, password: pass }),
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if(data.status === 'success') {
-                // Guardamos al usuario en la memoria
-                localStorage.setItem('censia_usuario_activo', data.user);
-                localStorage.setItem('censia_jurisdiccion_activa', data.jurisdiccion || ''); // <-- NUEVA
+    const user = document.getElementById('login_usuario').value.trim();
+    const pass = document.getElementById('login_password').value.trim();
+    const btn = document.getElementById('btn_ingresar');
+    const msg = document.getElementById('mensaje_login');
+    
+    if(!user || !pass) {
+        msg.textContent = "Ingresa usuario y contraseña";
+        msg.classList.remove('oculto');
+        return;
+    }
+    
+    btn.innerHTML = "⏳ Validando credenciales...";
+    btn.disabled = true;
+    msg.classList.add('oculto');
+    
+    fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'login', usuario: user, password: pass }),
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if(data.status === 'success') {
+            // Guardamos al usuario en la memoria
+            localStorage.setItem('censia_usuario_activo', data.user);
+            localStorage.setItem('censia_jurisdiccion_activa', data.jurisdiccion || ''); // <-- NUEVA
 
-                // Prellenamos y bloqueamos los campos visuales en el formulario
-                const inputNombre = document.getElementById('registrador_nombre');
-                const inputInst = document.getElementById('registrador_institucion');
-                
-                if (inputNombre) {
-                    inputNombre.value = data.nombre_real || data.user;
-                    inputNombre.readOnly = true; 
-                    inputNombre.style.backgroundColor = '#f1f5f9';
-                }
-                if (inputInst) {
-                    // Si Sheets devuelve una institución que no está en la lista exacta, la forzamos
-                    let existeOpcion = Array.from(inputInst.options).some(opt => opt.value === data.institucion);
-                    if (!existeOpcion && data.institucion) {
-                        inputInst.add(new Option(data.institucion, data.institucion));
-                    }
-                    
-                    inputInst.value = data.institucion || '';
-                    inputInst.readOnly = true;
-                    inputInst.disabled = true; 
-                    inputInst.style.backgroundColor = '#f1f5f9';
-                }
-                // BLINDAJE DE JURISDICCIÓN
-                const inputJuris = document.getElementById('jurisdiccion');
-                if (inputJuris && data.jurisdiccion) {
-                    const tsJuris = tomSelectInstances['jurisdiccion'];
-                    const jurisDB = data.jurisdiccion;
-                    
-                    if (jurisDB.toUpperCase() !== 'ESTATAL') {
-                        // Busca la coincidencia exacta en el catálogo ignorando mayúsculas/minúsculas
-                        let jurisExacta = "";
-                        if (typeof mapaJurisMunicipio !== 'undefined') {
-                            jurisExacta = Object.keys(mapaJurisMunicipio).find(k => k.toUpperCase() === jurisDB.toUpperCase()) || jurisDB;
-                        } else {
-                            jurisExacta = jurisDB;
-                        }
-
-                        if (tsJuris) {
-                            if (!tsJuris.options[jurisExacta]) tsJuris.addOption({value: jurisExacta, text: jurisExacta});
-                            tsJuris.setValue(jurisExacta);
-                            tsJuris.disable(); // Bloqueamos para que no lo cambie
-                        } else {
-                            inputJuris.value = jurisExacta;
-                            inputJuris.disabled = true;
-                        }
-                        
-                        // Disparamos la cascada de municipios
-                        if (typeof filtrarMunicipiosPorJurisdiccion === 'function') {
-                            filtrarMunicipiosPorJurisdiccion(jurisExacta);
-                        }
-                    } else {
-                        // Si es ESTATAL, lo dejamos libre
-                        if (tsJuris) tsJuris.enable();
-                        else inputJuris.disabled = false;
-                    }
-                }
-
-                // BLINDAJE DE ENTIDAD (Forzar y bloquear Coahuila)
-                const idEntidad = 'Entidad de residencia'; 
-                const tsEntidad = tomSelectInstances[idEntidad];
-                const inputEnt = document.getElementById(idEntidad);
-
-                if (tsEntidad) {
-                    // 1. Fijar el valor
-                    tsEntidad.setValue('05 Coahuila');
-                    
-                    // 2. Bloqueo físico mediante CSS en el control de TomSelect
-                    tsEntidad.control.style.pointerEvents = 'none'; 
-                    tsEntidad.control.style.backgroundColor = '#e9ecef'; // Gris visual
-                    
-                    // 3. Evitar que se pueda llegar a él usando la tecla TAB del teclado
-                    tsEntidad.control_input.tabIndex = -1; 
-                    
-                    // NOTA: Eliminamos tsEntidad.disable() para asegurar que el dato sí se envíe
-                    
-                } else if (inputEnt) {
-                    inputEnt.value = '05 Coahuila';
-                    
-                    // Bloqueo físico directo sobre el select original
-                    inputEnt.style.pointerEvents = 'none';
-                    inputEnt.style.backgroundColor = '#e9ecef';
-                    inputEnt.tabIndex = -1; 
-                }
-
-                // Apagamos la pantalla de login y encendemos la app
-                document.getElementById('pantalla_login').classList.add('oculto');
-                document.getElementById('aplicacion_principal').classList.remove('oculto');
-                
-                // Refrescamos el mapa y despertamos la regla del IMSS
-                setTimeout(() => {
-                    document.querySelectorAll('.tarjeta-persona').forEach(t => {
-                        const pId = t.id.split('_').pop();
-                        if (typeof evaluarCascadaIMSS === 'function') evaluarCascadaIMSS(pId);
-                    });
-
-                    if (typeof mapaInteractivo !== 'undefined' && mapaInteractivo !== null) {
-                        mapaInteractivo.invalidateSize();
-                    }
-                    // <-- AHORA SÍ, YA QUE SABEMOS QUIÉN ES, DESCARGAMOS EL MAPA
-                    if (typeof cargarHistorialGpsRemoto === 'function') cargarHistorialGpsRemoto();
-                }, 300);
-            } else {
-                msg.textContent = data.message || "Credenciales incorrectas.";
-                msg.classList.remove('oculto');
-                btn.innerHTML = "Ingresar al Sistema";
-                btn.disabled = false;
+            // Prellenamos y bloqueamos los campos visuales en el formulario
+            const inputNombre = document.getElementById('registrador_nombre');
+            const inputInst = document.getElementById('registrador_institucion');
+            
+            if (inputNombre) {
+                inputNombre.value = data.nombre_real || data.user;
+                inputNombre.readOnly = true; 
+                inputNombre.style.backgroundColor = '#f1f5f9';
             }
-        })
-        .catch(error => {
-            console.error(error);
-            msg.textContent = "Error de red. Verifica tu conexión.";
+            if (inputInst) {
+                // Si Sheets devuelve una institución que no está en la lista exacta, la forzamos
+                let existeOpcion = Array.from(inputInst.options).some(opt => opt.value === data.institucion);
+                if (!existeOpcion && data.institucion) {
+                    inputInst.add(new Option(data.institucion, data.institucion));
+                }
+                
+                inputInst.value = data.institucion || '';
+                inputInst.readOnly = true;
+                inputInst.disabled = true; 
+                inputInst.style.backgroundColor = '#f1f5f9';
+            }
+            // BLINDAJE DE JURISDICCIÓN
+            const inputJuris = document.getElementById('Jurisdiccion');
+            if (inputJuris && data.jurisdiccion) {
+                const tsJuris = tomSelectInstances['Jurisdiccion'];
+                const jurisDB = data.jurisdiccion;
+                
+                if (jurisDB.toUpperCase() !== 'ESTATAL') {
+                    // Busca la coincidencia exacta en el catálogo ignorando mayúsculas/minúsculas
+                    let jurisExacta = "";
+                    if (typeof mapaJurisMunicipio !== 'undefined') {
+                        jurisExacta = Object.keys(mapaJurisMunicipio).find(k => k.toUpperCase() === jurisDB.toUpperCase()) || jurisDB;
+                    } else {
+                        jurisExacta = jurisDB;
+                    }
+
+                    if (tsJuris) {
+                        if (!tsJuris.options[jurisExacta]) tsJuris.addOption({value: jurisExacta, text: jurisExacta});
+                        tsJuris.setValue(jurisExacta);
+                        tsJuris.disable(); // Bloqueamos para que no lo cambie
+                    } else {
+                        inputJuris.value = jurisExacta;
+                        inputJuris.disabled = true;
+                    }
+                    
+                    // Disparamos la cascada de municipios
+                    if (typeof filtrarMunicipiosPorJurisdiccion === 'function') {
+                        filtrarMunicipiosPorJurisdiccion(jurisExacta);
+                    }
+                } else {
+                    // Si es ESTATAL, lo dejamos libre
+                    if (tsJuris) tsJuris.enable();
+                    else inputJuris.disabled = false;
+                }
+            }
+
+            // BLINDAJE DE ENTIDAD (Forzar y bloquear Coahuila)
+            const idEntidad = 'Entidad de residencia'; 
+            const tsEntidad = tomSelectInstances[idEntidad];
+            const inputEnt = document.getElementById(idEntidad);
+
+            if (tsEntidad) {
+                // 1. Fijar el valor
+                tsEntidad.setValue('05 Coahuila');
+                
+                // 2. Bloqueo físico mediante CSS en el control de TomSelect
+                tsEntidad.control.style.pointerEvents = 'none'; 
+                tsEntidad.control.style.backgroundColor = '#e9ecef'; // Gris visual
+                
+                // 3. Evitar que se pueda llegar a él usando la tecla TAB del teclado
+                tsEntidad.control_input.tabIndex = -1; 
+                
+                // NOTA: Eliminamos tsEntidad.disable() para asegurar que el dato sí se envíe
+                
+            } else if (inputEnt) {
+                inputEnt.value = '05 Coahuila';
+                
+                // Bloqueo físico directo sobre el select original
+                inputEnt.style.pointerEvents = 'none';
+                inputEnt.style.backgroundColor = '#e9ecef';
+                inputEnt.tabIndex = -1; 
+            }
+
+            // Apagamos la pantalla de login y encendemos la app principal
+            document.getElementById('pantalla_login').classList.add('oculto');
+            document.getElementById('aplicacion_principal').classList.remove('oculto');
+
+            // --- INICIO DE LA CORRECCIÓN INTELIGENTE (Fuerza Bruta sin adivinar IDs) ---
+            document.querySelectorAll('.oculto').forEach(elemento => {
+                const htmlContenido = elemento.innerHTML || "";
+                const idElemento = (elemento.id || "").toLowerCase();
+                
+                // Detecta las secciones por su texto o ID y las muestra a la fuerza
+                if (htmlContenido.includes('Datos del Domicilio') || 
+                    htmlContenido.includes('Datos de la persona') || 
+                    htmlContenido.includes('Datos de las personas') || 
+                    idElemento.includes('mapa')) {
+                    elemento.classList.remove('oculto');
+                }
+            });
+
+            // Desbloquea todos los TomSelect que fueron deshabilitados por la cascada accidental
+            if (typeof tomSelectInstances !== 'undefined') {
+                Object.keys(tomSelectInstances).forEach(key => {
+                    if (key !== 'Entidad de residencia' && key !== 'Jurisdiccion' && key !== 'registrador_institucion') {
+                        tomSelectInstances[key].enable();
+                    }
+                });
+            }
+            // --- FIN DE LA CORRECCIÓN ---
+            
+            // Refrescamos el mapa y despertamos la regla del IMSS
+            setTimeout(() => {
+                document.querySelectorAll('.tarjeta-persona').forEach(t => {
+                    const pId = t.id.split('_').pop();
+                    if (typeof evaluarCascadaIMSS === 'function') evaluarCascadaIMSS(pId);
+                });
+
+                // Repinta Leaflet ahora que el mapa es 100% visible
+                if (typeof mapaInteractivo !== 'undefined' && mapaInteractivo !== null) {
+                    mapaInteractivo.invalidateSize();
+                }
+                
+                // Descarga y dibuja los puntos históricos
+                if (typeof cargarHistorialGpsRemoto === 'function') cargarHistorialGpsRemoto();
+            }, 300);
+            
+        } else {
+            msg.textContent = data.message || "Credenciales incorrectas.";
             msg.classList.remove('oculto');
             btn.innerHTML = "Ingresar al Sistema";
             btn.disabled = false;
-        });
-    }
+        }
+    })
+    .catch(error => {
+        console.error(error);
+        msg.textContent = "Error de red. Verifica tu conexión.";
+        msg.classList.remove('oculto');
+        btn.innerHTML = "Ingresar al Sistema";
+        btn.disabled = false;
+    });
+}
 
     /* ==========================================
        VARIABLES GLOBALES Y CATÁLOGOS COMPLETOS
