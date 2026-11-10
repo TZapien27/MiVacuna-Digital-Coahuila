@@ -441,33 +441,6 @@
                     }
                 }
 
-                // BLINDAJE DE ENTIDAD (Forzar y bloquear Coahuila)
-                const idEntidad = 'Entidad de residencia'; 
-                const tsEntidad = tomSelectInstances[idEntidad];
-                const inputEnt = document.getElementById(idEntidad);
-
-                if (tsEntidad) {
-                    // 1. Fijar el valor
-                    tsEntidad.setValue('05 Coahuila');
-                    
-                    // 2. Bloqueo físico mediante CSS en el control de TomSelect
-                    tsEntidad.control.style.pointerEvents = 'none'; 
-                    tsEntidad.control.style.backgroundColor = '#e9ecef'; // Gris visual
-                    
-                    // 3. Evitar que se pueda llegar a él usando la tecla TAB del teclado
-                    tsEntidad.control_input.tabIndex = -1; 
-                    
-                    // NOTA: Eliminamos tsEntidad.disable() para asegurar que el dato sí se envíe
-                    
-                } else if (inputEnt) {
-                    inputEnt.value = '05 Coahuila';
-                    
-                    // Bloqueo físico directo sobre el select original
-                    inputEnt.style.pointerEvents = 'none';
-                    inputEnt.style.backgroundColor = '#e9ecef';
-                    inputEnt.tabIndex = -1; 
-                }
-
                 // Apagamos la pantalla de login y encendemos la app
                 document.getElementById('pantalla_login').classList.add('oculto');
                 document.getElementById('aplicacion_principal').classList.remove('oculto');
