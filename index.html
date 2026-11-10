@@ -358,120 +358,137 @@
     })();
 
     function validarCredenciales() {
-        const user = document.getElementById('login_usuario').value.trim();
-        const pass = document.getElementById('login_password').value.trim();
-        const btn = document.getElementById('btn_ingresar');
-        const msg = document.getElementById('mensaje_login');
-        
-        if(!user || !pass) {
-            msg.textContent = "Ingresa usuario y contraseña";
-            msg.classList.remove('oculto');
-            return;
-        }
-        
-        btn.innerHTML = "⏳ Validando credenciales...";
-        btn.disabled = true;
-        msg.classList.add('oculto');
-        
-        fetch(GOOGLE_SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify({ action: 'login', usuario: user, password: pass }),
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if(data.status === 'success') {
-                // Guardamos al usuario en la memoria
-                localStorage.setItem('censia_usuario_activo', data.user);
-                localStorage.setItem('censia_jurisdiccion_activa', data.jurisdiccion || ''); // <-- NUEVA
+    const user = document.getElementById('login_usuario').value.trim();
+    const pass = document.getElementById('login_password').value.trim();
+    const btn = document.getElementById('btn_ingresar');
+    const msg = document.getElementById('mensaje_login');
+    
+    if(!user || !pass) {
+        msg.textContent = "Ingresa usuario y contraseña";
+        msg.classList.remove('oculto');
+        return;
+    }
+    
+    btn.innerHTML = "⏳ Validando credenciales...";
+    btn.disabled = true;
+    msg.classList.add('oculto');
+    
+    fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'login', usuario: user, password: pass }),
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if(data.status === 'success') {
+            // Guardamos al usuario en la memoria
+            localStorage.setItem('censia_usuario_activo', data.user);
+            localStorage.setItem('censia_jurisdiccion_activa', data.jurisdiccion || '');
 
-                // Prellenamos y bloqueamos los campos visuales en el formulario
-                const inputNombre = document.getElementById('registrador_nombre');
-                const inputInst = document.getElementById('registrador_institucion');
-                
-                if (inputNombre) {
-                    inputNombre.value = data.nombre_real || data.user;
-                    inputNombre.readOnly = true; 
-                    inputNombre.style.backgroundColor = '#f1f5f9';
-                }
-                if (inputInst) {
-                    // Si Sheets devuelve una institución que no está en la lista exacta, la forzamos
-                    let existeOpcion = Array.from(inputInst.options).some(opt => opt.value === data.institucion);
-                    if (!existeOpcion && data.institucion) {
-                        inputInst.add(new Option(data.institucion, data.institucion));
-                    }
-                    
-                    inputInst.value = data.institucion || '';
-                    inputInst.readOnly = true;
-                    inputInst.disabled = true; 
-                    inputInst.style.backgroundColor = '#f1f5f9';
-                }
-                // BLINDAJE DE JURISDICCIÓN
-                const inputJuris = document.getElementById('jurisdiccion');
-                if (inputJuris && data.jurisdiccion) {
-                    const tsJuris = tomSelectInstances['jurisdiccion'];
-                    const jurisDB = data.jurisdiccion;
-                    
-                    if (jurisDB.toUpperCase() !== 'ESTATAL') {
-                        // Busca la coincidencia exacta en el catálogo ignorando mayúsculas/minúsculas
-                        let jurisExacta = "";
-                        if (typeof mapaJurisMunicipio !== 'undefined') {
-                            jurisExacta = Object.keys(mapaJurisMunicipio).find(k => k.toUpperCase() === jurisDB.toUpperCase()) || jurisDB;
-                        } else {
-                            jurisExacta = jurisDB;
-                        }
-
-                        if (tsJuris) {
-                            if (!tsJuris.options[jurisExacta]) tsJuris.addOption({value: jurisExacta, text: jurisExacta});
-                            tsJuris.setValue(jurisExacta);
-                            tsJuris.disable(); // Bloqueamos para que no lo cambie
-                        } else {
-                            inputJuris.value = jurisExacta;
-                            inputJuris.disabled = true;
-                        }
-                        
-                        // Disparamos la cascada de municipios
-                        if (typeof filtrarMunicipiosPorJurisdiccion === 'function') {
-                            filtrarMunicipiosPorJurisdiccion(jurisExacta);
-                        }
-                    } else {
-                        // Si es ESTATAL, lo dejamos libre
-                        if (tsJuris) tsJuris.enable();
-                        else inputJuris.disabled = false;
-                    }
-                }
-
-                // Apagamos la pantalla de login y encendemos la app
-                document.getElementById('pantalla_login').classList.add('oculto');
-                document.getElementById('aplicacion_principal').classList.remove('oculto');
-                
-                // Refrescamos el mapa y despertamos la regla del IMSS
-                setTimeout(() => {
-                    document.querySelectorAll('.tarjeta-persona').forEach(t => {
-                        const pId = t.id.split('_').pop();
-                        if (typeof evaluarCascadaIMSS === 'function') evaluarCascadaIMSS(pId);
-                    });
-
-                    if (typeof mapaInteractivo !== 'undefined' && mapaInteractivo !== null) {
-                        mapaInteractivo.invalidateSize();
-                    }
-                    // <-- AHORA SÍ, YA QUE SABEMOS QUIÉN ES, DESCARGAMOS EL MAPA
-                    if (typeof cargarHistorialGpsRemoto === 'function') cargarHistorialGpsRemoto();
-                }, 300);
-            } else {
-                msg.textContent = data.message || "Credenciales incorrectas.";
-                msg.classList.remove('oculto');
-                btn.innerHTML = "Ingresar al Sistema";
-                btn.disabled = false;
+            // Prellenamos y bloqueamos los campos visuales en el formulario
+            const inputNombre = document.getElementById('registrador_nombre');
+            const inputInst = document.getElementById('registrador_institucion');
+            
+            if (inputNombre) {
+                inputNombre.value = data.nombre_real || data.user;
+                inputNombre.readOnly = true; 
+                inputNombre.style.backgroundColor = '#f1f5f9';
             }
-        })
-        .catch(error => {
-            console.error(error);
-            msg.textContent = "Error de red. Verifica tu conexión.";
+            if (inputInst) {
+                let existeOpcion = Array.from(inputInst.options).some(opt => opt.value === data.institucion);
+                if (!existeOpcion && data.institucion) {
+                    inputInst.add(new Option(data.institucion, data.institucion));
+                }
+                
+                inputInst.value = data.institucion || '';
+                inputInst.readOnly = true;
+                inputInst.disabled = true; 
+                inputInst.style.backgroundColor = '#f1f5f9';
+            }
+
+            // BLINDAJE DE JURISDICCIÓN DESDE LA BD
+            const inputJuris = document.getElementById('jurisdiccion');
+            if (inputJuris && data.jurisdiccion) {
+                const tsJuris = (typeof tomSelectInstances !== 'undefined') ? tomSelectInstances['jurisdiccion'] : null;
+                const jurisDB = data.jurisdiccion;
+                
+                if (jurisDB.toUpperCase() !== 'ESTATAL') {
+                    let jurisExacta = "";
+                    if (typeof mapaJurisMunicipio !== 'undefined') {
+                        jurisExacta = Object.keys(mapaJurisMunicipio).find(k => k.toUpperCase() === jurisDB.toUpperCase()) || jurisDB;
+                    } else {
+                        jurisExacta = jurisDB;
+                    }
+
+                    if (tsJuris) {
+                        if (!tsJuris.options[jurisExacta]) tsJuris.addOption({value: jurisExacta, text: jurisExacta});
+                        tsJuris.setValue(jurisExacta);
+                        tsJuris.disable(); 
+                    } else {
+                        inputJuris.value = jurisExacta;
+                        inputJuris.disabled = true;
+                    }
+                    
+                    // Disparamos la cascada de municipios
+                    if (typeof filtrarMunicipiosPorJurisdiccion === 'function') {
+                        filtrarMunicipiosPorJurisdiccion(jurisExacta);
+                    }
+                } else {
+                    if (tsJuris) tsJuris.enable();
+                    else inputJuris.disabled = false;
+                }
+            }
+
+            // --- NUEVO: BLINDAJE DE ENTIDAD (FORZAR Y BLOQUEAR 05 COAHUILA) ---
+            const idEntidad = 'Entidad de residencia';
+            const inputEnt = document.getElementById(idEntidad);
+            const tsEntidad = (typeof tomSelectInstances !== 'undefined') ? tomSelectInstances[idEntidad] : null;
+
+            if (tsEntidad) {
+                tsEntidad.setValue('05 Coahuila');
+                tsEntidad.control.style.pointerEvents = 'none';
+                tsEntidad.control.style.backgroundColor = '#e9ecef';
+                if (tsEntidad.control_input) tsEntidad.control_input.tabIndex = -1;
+            } else if (inputEnt) {
+                inputEnt.value = '05 Coahuila';
+                inputEnt.style.pointerEvents = 'none';
+                inputEnt.style.backgroundColor = '#e9ecef';
+                inputEnt.tabIndex = -1;
+            }
+            // -----------------------------------------------------------------
+
+            // Apagamos la pantalla de login y encendemos la app
+            document.getElementById('pantalla_login').classList.add('oculto');
+            document.getElementById('aplicacion_principal').classList.remove('oculto');
+            
+            // Refrescamos el mapa y despertamos la regla del IMSS
+            setTimeout(() => {
+                document.querySelectorAll('.tarjeta-persona').forEach(t => {
+                    const pId = t.id.split('_').pop();
+                    if (typeof evaluarCascadaIMSS === 'function') evaluarCascadaIMSS(pId);
+                });
+
+                if (typeof mapaInteractivo !== 'undefined' && mapaInteractivo !== null) {
+                    mapaInteractivo.invalidateSize();
+                }
+                
+                // Cargar el historial GPS tras habilitar la interfaz
+                if (typeof cargarHistorialGpsRemoto === 'function') cargarHistorialGpsRemoto();
+            }, 300);
+        } else {
+            msg.textContent = data.message || "Credenciales incorrectas.";
             msg.classList.remove('oculto');
             btn.innerHTML = "Ingresar al Sistema";
             btn.disabled = false;
-        });
+        }
+    })
+    .catch(error => {
+        console.error(error);
+        msg.textContent = "Error de red. Verifica tu conexión.";
+        msg.classList.remove('oculto');
+        btn.innerHTML = "Ingresar al Sistema";
+        btn.disabled = false;
+    });
     }
 
     /* ==========================================
@@ -1774,119 +1791,128 @@
        CAPA VECTORIAL REMOTA (MAPEO GRANULAR DE ESTADOS)
        ========================================== */
     async function cargarHistorialGpsRemoto() {
-        if (!mapaInteractivo) return;
+    if (!mapaInteractivo) return;
 
-        // 1. LEER QUIÉN ESTÁ LOGUEADO
-        const jurisUsuario = localStorage.getItem('censia_jurisdiccion_activa') || "";
-        const selectJurisdiccion = document.getElementById('jurisdiccion');
-        const jurisSelect = selectJurisdiccion ? selectJurisdiccion.value.trim().toUpperCase() : "";
+    // 1. LEER QUIÉN ESTÁ LOGUEADO Y DETERMINAR FILTRO
+    const jurisUsuario = (localStorage.getItem('censia_jurisdiccion_activa') || "").trim().toUpperCase();
+    const selectJurisdiccion = document.getElementById('jurisdiccion');
+    const jurisSelect = selectJurisdiccion ? selectJurisdiccion.value.trim().toUpperCase() : "";
 
-        // REGLA: Si el usuario es ESTATAL, el filtro será lo que elija en el menú desplegable.
-        // Si no es estatal, forzamos su propia jurisdicción (JS8, JS1, etc.) pase lo que pase.
-        const filtroJurisdiccion = (jurisUsuario === 'ESTATAL') ? jurisSelect : jurisUsuario;
+    const filtroJurisdiccion = (jurisUsuario === 'ESTATAL' || jurisUsuario === 'ESTADO') ? jurisSelect : jurisUsuario;
 
-        try {
-            const url = `${GOOGLE_SCRIPT_URL}?action=historial_gps`;
-            const respuesta = await fetch(url, { method: 'GET', redirect: 'follow' });
-            const puntos = await respuesta.json();
+    try {
+        const url = `${GOOGLE_SCRIPT_URL}?action=historial_gps`;
+        const respuesta = await fetch(url, { method: 'GET', redirect: 'follow' });
+        const puntos = await respuesta.json();
+        console.log(puntos[0]);
+        
+        if (!puntos || !Array.isArray(puntos) || puntos.length === 0) return;
 
-            if (!puntos || puntos.length === 0) return;
-
-            puntos.forEach(p => {
-                // 2. EL FILTRO ESTRICTO
-                if (p.jurisdiccion) {
-                    const jurisPunto = p.jurisdiccion.toString().trim().toUpperCase();
-                    if (filtroJurisdiccion !== "" && jurisPunto !== filtroJurisdiccion) {
-                        return; // Ignora los puntos de otras jurisdicciones
-                    }
-                }
-
-                if(p.lat && p.lon) {
-                    let esCasoIndice = (p.caso_indice === 'SI');
+        puntos.forEach(p => {
+            // 2. FILTRADO ROBUSTO POR JURISDICCIÓN
+            if (filtroJurisdiccion !== "" && filtroJurisdiccion !== "ESTATAL" && filtroJurisdiccion !== "TODAS") {
+                const jurisPunto = (p.jurisdiccion || "").toString().trim().toUpperCase();
+                if (jurisPunto) {
+                    const coincideExacto = (jurisPunto === filtroJurisdiccion);
+                    const coincideParcial = jurisPunto.includes(filtroJurisdiccion) || filtroJurisdiccion.includes(jurisPunto);
                     
-                    // TRANSPARENCIAS APLICADAS (0.45 = 45% de opacidad)
-                    let bgFondo = esCasoIndice ? 'rgba(220, 38, 38, 0.9)' : 'rgba(100, 116, 139, 0.45)'; 
-                    let colorBorde = esCasoIndice ? '#7f1d1d' : 'rgba(100, 116, 139, 0.8)';
-                    let tamanio = esCasoIndice ? 18 : 14;
-                    
-                    const sit = (p.situacion || "").toString().trim().toUpperCase();
-                    const dom = (p.domicilio || "").toString().trim().toUpperCase();
-                    let etiquetaEstatus = p.situacion || 'N/D';
-
-                    if (!esCasoIndice) {
-                        if (dom === 'MF' || dom.includes('MODULO') || dom.includes('MÓDULO')) {
-                            bgFondo = 'rgba(59, 130, 246, 0.45)'; colorBorde = 'rgba(59, 130, 246, 0.8)';
-                            etiquetaEstatus = "Módulo Fijo";
-                        }
-                        else if (sit === 'CN' || sit === 'CN_NR' || sit.includes('CON NIÑOS')) {
-                            bgFondo = 'rgba(34, 197, 94, 0.45)'; colorBorde = 'rgba(34, 197, 94, 0.8)';
-                            etiquetaEstatus = (sit === 'CN_NR' || sit.includes('NO SE REGISTRAN')) ? "Con niños (Sin registro)" : "Con niños (Con registro)";
-                        } else if (sit === 'SN_REG' || sit === 'SN_NO' || sit.includes('SIN NIÑOS')) {
-                            bgFondo = 'rgba(34, 197, 94, 0.45)'; colorBorde = 'rgba(34, 197, 94, 0.8)';
-                            etiquetaEstatus = (sit === 'SN_NO' || sit.includes('NO SE REGISTRA')) ? "Sin niños (Sin registro)" : "Sin niños (Con registro)";
-                        } else if (sit.includes('N_') || dom.includes('NEGOCIO') || dom.includes('(N)')) {
-                            bgFondo = 'rgba(59, 130, 246, 0.45)'; colorBorde = 'rgba(59, 130, 246, 0.8)';
-                            etiquetaEstatus = (sit === 'N_SIN' || sit.includes('SIN PERSONAS')) ? "Negocio (Sin personas por vacunar)" : "Negocio (Con personas por vacunar)";
-                        } else if (sit === 'A' || sit.includes('AUSENTE') || sit.includes('(A)')) {
-                            bgFondo = 'rgba(234, 179, 8, 0.45)'; colorBorde = 'rgba(234, 179, 8, 0.8)';
-                            etiquetaEstatus = "Familia Ausente";
-                        } else if (sit === 'R' || sit.includes('RENUENTE') || sit.includes('(R)')) {
-                            bgFondo = 'rgba(239, 68, 68, 0.45)'; colorBorde = 'rgba(239, 68, 68, 0.8)';
-                            etiquetaEstatus = "Familia Renuente";
-                        } else if (dom.includes('DESHABITADA') || dom.includes('BALDIO') || dom.includes('BALDÍO') || dom.includes('DH')) {
-                            bgFondo = 'rgba(15, 23, 42, 0.45)'; colorBorde = 'rgba(15, 23, 42, 0.8)';
-                            etiquetaEstatus = "Deshabitado / Baldío";
-                        }
+                    if (!coincideExacto && !coincideParcial) {
+                        return; // Omite registros que no corresponden a la jurisdicción activa
                     }
-
-                    const iconoHistoricoDinamico = L.divIcon({
-                        className: 'marcador-historial-dinamico',
-                        html: `<div style="background-color: ${bgFondo}; width: ${tamanio}px; height: ${tamanio}px; border-radius: 50%; border: 2px solid ${colorBorde}; box-shadow: 0 0 ${esCasoIndice ? '8px red' : '2px rgba(0,0,0,0.3)'};"></div>`,
-                        iconSize: [tamanio, tamanio],
-                        iconAnchor: [tamanio/2, tamanio/2]
-                    });
-
-                    let fechaCorta = "S/D";
-                    if (p.fecha_actividad) {
-                        let partesFecha = p.fecha_actividad.split('/');
-                        if (partesFecha.length === 3) {
-                            fechaCorta = `${partesFecha[0]}/${partesFecha[1]}/${partesFecha[2].slice(-2)}`;
-                        } else {
-                            fechaCorta = p.fecha_actividad;
-                        }
-                    }
-
-                    let htmlPopup = `
-                        <div style="font-family: sans-serif; min-width: 230px;">
-                            <h4 style="margin: 0 0 8px 0; color: ${esCasoIndice ? '#dc2626' : '#0f172a'}; border-bottom: 2px solid ${esCasoIndice ? '#dc2626' : '#3b82f6'}; padding-bottom: 4px; font-size: 1.1em;">
-                                ${esCasoIndice ? '🚨 CASO ÍNDICE' : 'Acciones realizadas'}
-                            </h4>
-                            <div style="font-size: 0.9em; line-height: 1.6; color: #334155;">
-                                <b>ID:</b> ${p.lugar_fijo || 'S/D'}<br>
-                                📅 <b>Fecha:</b> ${fechaCorta}<br>
-                                📍 <b>Dirección:</b> ${p.calle || 'S/D'} ${p.colonia ? ', Col. ' + p.colonia : ''}<br>
-                                🏠 <b>Tipo:</b> ${p.domicilio || 'N/D'}<br>
-                                👤 <b>Registró:</b> ${p.registrador_nombre || 'N/D'} (${p.registrador_institucion || '-'})<br>
-                                📋 <b>Estatus:</b> <span style="font-weight: bold; background-color: ${esCasoIndice ? '#fee2e2' : '#f1f5f9'}; padding: 2px 4px; border-radius: 3px; display:inline-block; margin-top:4px;">${etiquetaEstatus}</span>
-                            </div>
-                            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #cbd5e1; font-size: 0.95em; color: #0f172a;">
-                                👥 Personas: <b>${p.total_personas !== undefined ? p.total_personas : 'N/D'}</b> &nbsp;|&nbsp; 💉 Dosis: <b>${p.total_dosis !== undefined ? p.total_dosis : 'N/D'}</b>
-                            </div>
-                        </div>
-                    `;
-
-                    L.marker([p.lat, p.lon], { 
-                        icon: iconoHistoricoDinamico,
-                        esHistoricoRemoto: true
-                    })
-                    .bindPopup(htmlPopup)
-                    .addTo(mapaInteractivo);
+                } else {
+                    return;
                 }
+            }
+
+            // 3. PARSEO Y VALIDACIÓN NUMÉRICA DE COORDENADAS PARA LEAFLET
+            const latNum = parseFloat(p.lat);
+            const lonNum = parseFloat(p.lon);
+
+            if (isNaN(latNum) || isNaN(lonNum)) return;
+
+            let esCasoIndice = (p.caso_indice === 'SI');
+            
+            let bgFondo = esCasoIndice ? 'rgba(220, 38, 38, 0.9)' : 'rgba(100, 116, 139, 0.45)'; 
+            let colorBorde = esCasoIndice ? '#7f1d1d' : 'rgba(100, 116, 139, 0.8)';
+            let tamanio = esCasoIndice ? 18 : 14;
+            
+            const sit = (p.situacion || "").toString().trim().toUpperCase();
+            const dom = (p.domicilio || "").toString().trim().toUpperCase();
+            let etiquetaEstatus = p.situacion || 'N/D';
+
+            if (!esCasoIndice) {
+                if (dom === 'MF' || dom.includes('MODULO') || dom.includes('MÓDULO')) {
+                    bgFondo = 'rgba(59, 130, 246, 0.45)'; colorBorde = 'rgba(59, 130, 246, 0.8)';
+                    etiquetaEstatus = "Módulo Fijo";
+                }
+                else if (sit === 'CN' || sit === 'CN_NR' || sit.includes('CON NIÑOS')) {
+                    bgFondo = 'rgba(34, 197, 94, 0.45)'; colorBorde = 'rgba(34, 197, 94, 0.8)';
+                    etiquetaEstatus = (sit === 'CN_NR' || sit.includes('NO SE REGISTRAN')) ? "Con niños (Sin registro)" : "Con niños (Con registro)";
+                } else if (sit === 'SN_REG' || sit === 'SN_NO' || sit.includes('SIN NIÑOS')) {
+                    bgFondo = 'rgba(34, 197, 94, 0.45)'; colorBorde = 'rgba(34, 197, 94, 0.8)';
+                    etiquetaEstatus = (sit === 'SN_NO' || sit.includes('NO SE REGISTRA')) ? "Sin niños (Sin registro)" : "Sin niños (Con registro)";
+                } else if (sit.includes('N_') || dom.includes('NEGOCIO') || dom.includes('(N)')) {
+                    bgFondo = 'rgba(59, 130, 246, 0.45)'; colorBorde = 'rgba(59, 130, 246, 0.8)';
+                    etiquetaEstatus = (sit === 'N_SIN' || sit.includes('SIN PERSONAS')) ? "Negocio (Sin personas por vacunar)" : "Negocio (Con personas por vacunar)";
+                } else if (sit === 'A' || sit.includes('AUSENTE') || sit.includes('(A)')) {
+                    bgFondo = 'rgba(234, 179, 8, 0.45)'; colorBorde = 'rgba(234, 179, 8, 0.8)';
+                    etiquetaEstatus = "Familia Ausente";
+                } else if (sit === 'R' || sit.includes('RENUENTE') || sit.includes('(R)')) {
+                    bgFondo = 'rgba(239, 68, 68, 0.45)'; colorBorde = 'rgba(239, 68, 68, 0.8)';
+                    etiquetaEstatus = "Familia Renuente";
+                } else if (dom.includes('DESHABITADA') || dom.includes('BALDIO') || dom.includes('BALDÍO') || dom.includes('DH')) {
+                    bgFondo = 'rgba(15, 23, 42, 0.45)'; colorBorde = 'rgba(15, 23, 42, 0.8)';
+                    etiquetaEstatus = "Deshabitado / Baldío";
+                }
+            }
+
+            const iconoHistoricoDinamico = L.divIcon({
+                className: 'marcador-historial-dinamico',
+                html: `<div style="background-color: ${bgFondo}; width: ${tamanio}px; height: ${tamanio}px; border-radius: 50%; border: 2px solid ${colorBorde}; box-shadow: 0 0 ${esCasoIndice ? '8px red' : '2px rgba(0,0,0,0.3)'};"></div>`,
+                iconSize: [tamanio, tamanio],
+                iconAnchor: [tamanio/2, tamanio/2]
             });
 
-        } catch (error) {
-            console.error("Fallo de sincronización de la capa vectorial histórica:", error);
-        }
+            let fechaCorta = "S/D";
+            if (p.fecha_actividad) {
+                let partesFecha = p.fecha_actividad.split('/');
+                if (partesFecha.length === 3) {
+                    fechaCorta = `${partesFecha[0]}/${partesFecha[1]}/${partesFecha[2].slice(-2)}`;
+                } else {
+                    fechaCorta = p.fecha_actividad;
+                }
+            }
+
+            let htmlPopup = `
+                <div style="font-family: sans-serif; min-width: 230px;">
+                    <h4 style="margin: 0 0 8px 0; color: ${esCasoIndice ? '#dc2626' : '#0f172a'}; border-bottom: 2px solid ${esCasoIndice ? '#dc2626' : '#3b82f6'}; padding-bottom: 4px; font-size: 1.1em;">
+                        ${esCasoIndice ? '🚨 CASO ÍNDICE' : 'Acciones realizadas'}
+                    </h4>
+                    <div style="font-size: 0.9em; line-height: 1.6; color: #334155;">
+                        <b>ID:</b> ${p.lugar_fijo || 'S/D'}<br>
+                        📅 <b>Fecha:</b> ${fechaCorta}<br>
+                        📍 <b>Dirección:</b> ${p.calle || 'S/D'} ${p.colonia ? ', Col. ' + p.colonia : ''}<br>
+                        🏠 <b>Tipo:</b> ${p.domicilio || 'N/D'}<br>
+                        👤 <b>Registró:</b> ${p.registrador_nombre || 'N/D'} (${p.registrador_institucion || '-'})<br>
+                        📋 <b>Estatus:</b> <span style="font-weight: bold; background-color: ${esCasoIndice ? '#fee2e2' : '#f1f5f9'}; padding: 2px 4px; border-radius: 3px; display:inline-block; margin-top:4px;">${etiquetaEstatus}</span>
+                    </div>
+                    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #cbd5e1; font-size: 0.95em; color: #0f172a;">
+                        👥 Personas: <b>${p.total_personas !== undefined ? p.total_personas : 'N/D'}</b> &nbsp;|&nbsp; 💉 Dosis: <b>${p.total_dosis !== undefined ? p.total_dosis : 'N/D'}</b>
+                    </div>
+                </div>
+            `;
+
+            L.marker([latNum, lonNum], { 
+                icon: iconoHistoricoDinamico,
+                esHistoricoRemoto: true
+            })
+            .bindPopup(htmlPopup)
+            .addTo(mapaInteractivo);
+        });
+
+    } catch (error) {
+        console.error("Fallo de sincronización de la capa vectorial histórica:", error);
+    }
     }
 
     /* ==========================================
