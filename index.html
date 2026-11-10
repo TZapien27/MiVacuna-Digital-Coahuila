@@ -1847,120 +1847,127 @@
        CAPA VECTORIAL REMOTA (MAPEO GRANULAR DE ESTADOS)
        ========================================== */
     async function cargarHistorialGpsRemoto() {
-        if (!mapaInteractivo) return;
+    if (!mapaInteractivo) return;
 
-        // 1. LEER QUIÉN ESTÁ LOGUEADO
-        const jurisUsuario = localStorage.getItem('censia_jurisdiccion_activa') || "";
-        const selectJurisdiccion = document.getElementById('jurisdiccion');
-        const jurisSelect = selectJurisdiccion ? selectJurisdiccion.value.trim().toUpperCase() : "";
+    // 1. LEER LA JURISDICCIÓN ASIGNADA DESDE EL LOGIN (Hoja Usuarios)
+    const jurisUsuario = (localStorage.getItem('censia_jurisdiccion_activa') || "").trim().toUpperCase();
 
-        // REGLA: Si el usuario es ESTATAL, el filtro será lo que elija en el menú desplegable.
-        // Si no es estatal, forzamos su propia jurisdicción (JS8, JS1, etc.) pase lo que pase.
-        const filtroJurisdiccion = (jurisUsuario === 'ESTATAL') ? jurisSelect : jurisUsuario;
+    try {
+        const url = `${GOOGLE_SCRIPT_URL}?action=historial_gps`;
+        const respuesta = await fetch(url, { method: 'GET', redirect: 'follow' });
+        const puntos = await respuesta.json();
 
-        try {
-            const url = `${GOOGLE_SCRIPT_URL}?action=historial_gps`;
-            const respuesta = await fetch(url, { method: 'GET', redirect: 'follow' });
-            const puntos = await respuesta.json();
+        if (!puntos || !Array.isArray(puntos) || puntos.length === 0) return;
 
-            if (!puntos || puntos.length === 0) return;
+        let pintados = 0;
 
-            puntos.forEach(p => {
-                // 2. EL FILTRO ESTRICTO
-                if (p.jurisdiccion) {
-                    const jurisPunto = p.jurisdiccion.toString().trim().toUpperCase();
-                    if (filtroJurisdiccion !== "" && jurisPunto !== filtroJurisdiccion) {
-                        return; // Ignora los puntos de otras jurisdicciones
-                    }
+        puntos.forEach(p => {
+            // 2. FILTRADO ESTRICTO SEGÚN LA JURISDICCIÓN DEL USUARIO LOGUEADO
+            // Si el usuario NO es ESTATAL, filtramos estrictamente por su región asignada
+            if (jurisUsuario !== "" && jurisUsuario !== "ESTATAL" && jurisUsuario !== "TODAS") {
+                const jurisPunto = (p.jurisdiccion || "").toString().trim().toUpperCase();
+                
+                // Comparamos coincidencia exacta o parcial por si una trae número y otra nombre
+                const coincideExacto = jurisPunto === jurisUsuario;
+                const coincideParcial = jurisPunto.includes(jurisUsuario) || jurisUsuario.includes(jurisPunto);
+                
+                if (!coincideExacto && !coincideParcial) {
+                    return; // Salta los puntos que pertenecen a otra jurisdicción
                 }
+            }
 
-                if(p.lat && p.lon) {
-                    let esCasoIndice = (p.caso_indice === 'SI');
-                    
-                    // TRANSPARENCIAS APLICADAS (0.45 = 45% de opacidad)
-                    let bgFondo = esCasoIndice ? 'rgba(220, 38, 38, 0.9)' : 'rgba(100, 116, 139, 0.45)'; 
-                    let colorBorde = esCasoIndice ? '#7f1d1d' : 'rgba(100, 116, 139, 0.8)';
-                    let tamanio = esCasoIndice ? 18 : 14;
-                    
-                    const sit = (p.situacion || "").toString().trim().toUpperCase();
-                    const dom = (p.domicilio || "").toString().trim().toUpperCase();
-                    let etiquetaEstatus = p.situacion || 'N/D';
+            const latNum = parseFloat(p.lat);
+            const lonNum = parseFloat(p.lon);
 
-                    if (!esCasoIndice) {
-                        if (dom === 'MF' || dom.includes('MODULO') || dom.includes('MÓDULO')) {
-                            bgFondo = 'rgba(59, 130, 246, 0.45)'; colorBorde = 'rgba(59, 130, 246, 0.8)';
-                            etiquetaEstatus = "Módulo Fijo";
-                        }
-                        else if (sit === 'CN' || sit === 'CN_NR' || sit.includes('CON NIÑOS')) {
-                            bgFondo = 'rgba(34, 197, 94, 0.45)'; colorBorde = 'rgba(34, 197, 94, 0.8)';
-                            etiquetaEstatus = (sit === 'CN_NR' || sit.includes('NO SE REGISTRAN')) ? "Con niños (Sin registro)" : "Con niños (Con registro)";
-                        } else if (sit === 'SN_REG' || sit === 'SN_NO' || sit.includes('SIN NIÑOS')) {
-                            bgFondo = 'rgba(34, 197, 94, 0.45)'; colorBorde = 'rgba(34, 197, 94, 0.8)';
-                            etiquetaEstatus = (sit === 'SN_NO' || sit.includes('NO SE REGISTRA')) ? "Sin niños (Sin registro)" : "Sin niños (Con registro)";
-                        } else if (sit.includes('N_') || dom.includes('NEGOCIO') || dom.includes('(N)')) {
-                            bgFondo = 'rgba(59, 130, 246, 0.45)'; colorBorde = 'rgba(59, 130, 246, 0.8)';
-                            etiquetaEstatus = (sit === 'N_SIN' || sit.includes('SIN PERSONAS')) ? "Negocio (Sin personas por vacunar)" : "Negocio (Con personas por vacunar)";
-                        } else if (sit === 'A' || sit.includes('AUSENTE') || sit.includes('(A)')) {
-                            bgFondo = 'rgba(234, 179, 8, 0.45)'; colorBorde = 'rgba(234, 179, 8, 0.8)';
-                            etiquetaEstatus = "Familia Ausente";
-                        } else if (sit === 'R' || sit.includes('RENUENTE') || sit.includes('(R)')) {
-                            bgFondo = 'rgba(239, 68, 68, 0.45)'; colorBorde = 'rgba(239, 68, 68, 0.8)';
-                            etiquetaEstatus = "Familia Renuente";
-                        } else if (dom.includes('DESHABITADA') || dom.includes('BALDIO') || dom.includes('BALDÍO') || dom.includes('DH')) {
-                            bgFondo = 'rgba(15, 23, 42, 0.45)'; colorBorde = 'rgba(15, 23, 42, 0.8)';
-                            etiquetaEstatus = "Deshabitado / Baldío";
-                        }
-                    }
+            if (isNaN(latNum) || isNaN(lonNum)) return;
 
-                    const iconoHistoricoDinamico = L.divIcon({
-                        className: 'marcador-historial-dinamico',
-                        html: `<div style="background-color: ${bgFondo}; width: ${tamanio}px; height: ${tamanio}px; border-radius: 50%; border: 2px solid ${colorBorde}; box-shadow: 0 0 ${esCasoIndice ? '8px red' : '2px rgba(0,0,0,0.3)'};"></div>`,
-                        iconSize: [tamanio, tamanio],
-                        iconAnchor: [tamanio/2, tamanio/2]
-                    });
+            let esCasoIndice = (p.caso_indice === 'SI');
+            
+            let bgFondo = esCasoIndice ? 'rgba(220, 38, 38, 0.9)' : 'rgba(100, 116, 139, 0.45)'; 
+            let colorBorde = esCasoIndice ? '#7f1d1d' : 'rgba(100, 116, 139, 0.8)';
+            let tamanio = esCasoIndice ? 18 : 14;
+            
+            const sit = (p.situacion || "").toString().trim().toUpperCase();
+            const dom = (p.domicilio || "").toString().trim().toUpperCase();
+            let etiquetaEstatus = p.situacion || 'N/D';
 
-                    let fechaCorta = "S/D";
-                    if (p.fecha_actividad) {
-                        let partesFecha = p.fecha_actividad.split('/');
-                        if (partesFecha.length === 3) {
-                            fechaCorta = `${partesFecha[0]}/${partesFecha[1]}/${partesFecha[2].slice(-2)}`;
-                        } else {
-                            fechaCorta = p.fecha_actividad;
-                        }
-                    }
-
-                    let htmlPopup = `
-                        <div style="font-family: sans-serif; min-width: 230px;">
-                            <h4 style="margin: 0 0 8px 0; color: ${esCasoIndice ? '#dc2626' : '#0f172a'}; border-bottom: 2px solid ${esCasoIndice ? '#dc2626' : '#3b82f6'}; padding-bottom: 4px; font-size: 1.1em;">
-                                ${esCasoIndice ? '🚨 CASO ÍNDICE' : 'Acciones realizadas'}
-                            </h4>
-                            <div style="font-size: 0.9em; line-height: 1.6; color: #334155;">
-                                <b>ID:</b> ${p.lugar_fijo || 'S/D'}<br>
-                                📅 <b>Fecha:</b> ${fechaCorta}<br>
-                                📍 <b>Dirección:</b> ${p.calle || 'S/D'} ${p.colonia ? ', Col. ' + p.colonia : ''}<br>
-                                🏠 <b>Tipo:</b> ${p.domicilio || 'N/D'}<br>
-                                👤 <b>Registró:</b> ${p.registrador_nombre || 'N/D'} (${p.registrador_institucion || '-'})<br>
-                                📋 <b>Estatus:</b> <span style="font-weight: bold; background-color: ${esCasoIndice ? '#fee2e2' : '#f1f5f9'}; padding: 2px 4px; border-radius: 3px; display:inline-block; margin-top:4px;">${etiquetaEstatus}</span>
-                            </div>
-                            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #cbd5e1; font-size: 0.95em; color: #0f172a;">
-                                👥 Personas: <b>${p.total_personas !== undefined ? p.total_personas : 'N/D'}</b> &nbsp;|&nbsp; 💉 Dosis: <b>${p.total_dosis !== undefined ? p.total_dosis : 'N/D'}</b>
-                            </div>
-                        </div>
-                    `;
-
-                    L.marker([p.lat, p.lon], { 
-                        icon: iconoHistoricoDinamico,
-                        esHistoricoRemoto: true
-                    })
-                    .bindPopup(htmlPopup)
-                    .addTo(mapaInteractivo);
+            if (!esCasoIndice) {
+                if (dom === 'MF' || dom.includes('MODULO') || dom.includes('MÓDULO')) {
+                    bgFondo = 'rgba(59, 130, 246, 0.45)'; colorBorde = 'rgba(59, 130, 246, 0.8)';
+                    etiquetaEstatus = "Módulo Fijo";
                 }
+                else if (sit === 'CN' || sit === 'CN_NR' || sit.includes('CON NIÑOS')) {
+                    bgFondo = 'rgba(34, 197, 94, 0.45)'; colorBorde = 'rgba(34, 197, 94, 0.8)';
+                    etiquetaEstatus = (sit === 'CN_NR' || sit.includes('NO SE REGISTRAN')) ? "Con niños (Sin registro)" : "Con niños (Con registro)";
+                } else if (sit === 'SN_REG' || sit === 'SN_NO' || sit.includes('SIN NIÑOS')) {
+                    bgFondo = 'rgba(34, 197, 94, 0.45)'; colorBorde = 'rgba(34, 197, 94, 0.8)';
+                    etiquetaEstatus = (sit === 'SN_NO' || sit.includes('NO SE REGISTRA')) ? "Sin niños (Sin registro)" : "Sin niños (Con registro)";
+                } else if (sit.includes('N_') || dom.includes('NEGOCIO') || dom.includes('(N)')) {
+                    bgFondo = 'rgba(59, 130, 246, 0.45)'; colorBorde = 'rgba(59, 130, 246, 0.8)';
+                    etiquetaEstatus = (sit === 'N_SIN' || sit.includes('SIN PERSONAS')) ? "Negocio (Sin personas por vacunar)" : "Negocio (Con personas por vacunar)";
+                } else if (sit === 'A' || sit.includes('AUSENTE') || sit.includes('(A)')) {
+                    bgFondo = 'rgba(234, 179, 8, 0.45)'; colorBorde = 'rgba(234, 179, 8, 0.8)';
+                    etiquetaEstatus = "Familia Ausente";
+                } else if (sit === 'R' || sit.includes('RENUENTE') || sit.includes('(R)')) {
+                    bgFondo = 'rgba(239, 68, 68, 0.45)'; colorBorde = 'rgba(239, 68, 68, 0.8)';
+                    etiquetaEstatus = "Familia Renuente";
+                } else if (dom.includes('DESHABITADA') || dom.includes('BALDIO') || dom.includes('BALDÍO') || dom.includes('DH')) {
+                    bgFondo = 'rgba(15, 23, 42, 0.45)'; colorBorde = 'rgba(15, 23, 42, 0.8)';
+                    etiquetaEstatus = "Deshabitado / Baldío";
+                }
+            }
+
+            const iconoHistoricoDinamico = L.divIcon({
+                className: 'marcador-historial-dinamico',
+                html: `<div style="background-color: ${bgFondo}; width: ${tamanio}px; height: ${tamanio}px; border-radius: 50%; border: 2px solid ${colorBorde}; box-shadow: 0 0 ${esCasoIndice ? '8px red' : '2px rgba(0,0,0,0.3)'};"></div>`,
+                iconSize: [tamanio, tamanio],
+                iconAnchor: [tamanio/2, tamanio/2]
             });
 
-        } catch (error) {
-            console.error("Fallo de sincronización de la capa vectorial histórica:", error);
-        }
+            let fechaCorta = "S/D";
+            if (p.fecha_actividad) {
+                let partesFecha = p.fecha_actividad.split('/');
+                if (partesFecha.length === 3) {
+                    fechaCorta = `${partesFecha[0]}/${partesFecha[1]}/${partesFecha[2].slice(-2)}`;
+                } else {
+                    fechaCorta = p.fecha_actividad;
+                }
+            }
+
+            // 3. DISEÑO ORIGINAL EXACTO DE TU POPUP
+            let htmlPopup = `
+                <div style="font-family: sans-serif; min-width: 230px;">
+                    <h4 style="margin: 0 0 8px 0; color: ${esCasoIndice ? '#dc2626' : '#0f172a'}; border-bottom: 2px solid ${esCasoIndice ? '#dc2626' : '#3b82f6'}; padding-bottom: 4px; font-size: 1.1em;">
+                        ${esCasoIndice ? '🚨 CASO ÍNDICE' : 'Acciones realizadas'}
+                    </h4>
+                    <div style="font-size: 0.9em; line-height: 1.6; color: #334155;">
+                        <b>ID:</b> ${p.lugar_fijo || 'S/D'}<br>
+                        📅 <b>Fecha:</b> ${fechaCorta}<br>
+                        📍 <b>Dirección:</b> ${p.calle || 'S/D'} ${p.colonia ? ', Col. ' + p.colonia : ''}<br>
+                        🏠 <b>Tipo:</b> ${p.domicilio || 'N/D'}<br>
+                        👤 <b>Registró:</b> ${p.registrador_nombre || 'N/D'} (${p.registrador_institucion || '-'})<br>
+                        📋 <b>Estatus:</b> <span style="font-weight: bold; background-color: ${esCasoIndice ? '#fee2e2' : '#f1f5f9'}; padding: 2px 4px; border-radius: 3px; display:inline-block; margin-top:4px;">${etiquetaEstatus}</span>
+                    </div>
+                    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #cbd5e1; font-size: 0.95em; color: #0f172a;">
+                        👥 Personas: <b>${p.total_personas !== undefined ? p.total_personas : 'N/D'}</b> &nbsp;|&nbsp; 💉 Dosis: <b>${p.total_dosis !== undefined ? p.total_dosis : 'N/D'}</b>
+                    </div>
+                </div>
+            `;
+
+            L.marker([latNum, lonNum], { 
+                icon: iconoHistoricoDinamico,
+                esHistoricoRemoto: true
+            })
+            .bindPopup(htmlPopup)
+            .addTo(mapaInteractivo);
+
+            pintados++;
+        });
+
+    } catch (error) {
+        console.error("Fallo al cargar el historial GPS remoto:", error);
     }
+}
 
     /* ==========================================
        LÓGICA V15.6: CASCADAS IMSS Y BASE64
