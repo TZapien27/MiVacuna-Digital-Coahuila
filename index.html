@@ -553,27 +553,8 @@
         inicializarMapaDefecto();
         
         setTimeout(() => {
-            document.querySelectorAll('.tarjeta-persona').forEach(t => {
-                const pId = t.id.split('_').pop();
-                if (typeof evaluarCascadaIMSS === 'function') evaluarCascadaIMSS(pId);
-            });
-
-            if (typeof mapaInteractivo !== 'undefined' && mapaInteractivo !== null) {
-                mapaInteractivo.invalidateSize();
-            }
-            
-            // --- AQUÍ EMPIEZAN LAS LÍNEAS DE PRUEBA ---
-            console.log("Intentando cargar el historial GPS..."); 
-            
-            // <-- AHORA SÍ, YA QUE SABEMOS QUIÉN ES, DESCARGAMOS EL MAPA
-            if (typeof cargarHistorialGpsRemoto === 'function') {
-                cargarHistorialGpsRemoto();
-            } else {
-                console.error("ERROR: cargarHistorialGpsRemoto no existe o no se cargó en este archivo.");
-            }
-            // --- AQUÍ TERMINAN LAS LÍNEAS DE PRUEBA ---
-            
-        }, 300);
+            evaluarFlujoLogico();
+        }, 100);
             
         actualizarBotonSincronizacion();
         window.addEventListener('online', sincronizarPendientes);
