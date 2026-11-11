@@ -5,8 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MiVacuna Digital Coahuila - V15.85</title>
     
+    <!-- Enlace al archivo manifest para Android/Chrome -->
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#0056b3">
+    <!-- Etiqueta obligatoria para que los iPhone (Safari) agarren tu icono -->
+    <link rel="apple-touch-icon" href="icono-192.png">
+    <!-- Color de la barra de estado superior del navegador móvil -->
+    <meta name="theme-color" content="#0f172a">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -124,7 +128,7 @@
     
     <!-- 1. DATOS GENERALES DE LA JORNADA -->
     <div class="tarjeta" id="bloque_datos_generales">
-        <h2>1. Datos Generales de la Jornada <span style="color: #ef4444; font-size: 0.8rem; background: #fee2e2; padding: 2px 6px; border-radius: 4px; float: right;">v15.85</span></h2>
+        <h2>1. Datos Generales de la Jornada. <span style="color: #ef4444; font-size: 0.8rem; background: #fee2e2; padding: 2px 6px; border-radius: 4px; float: right;">v15.85</span></h2>
         
         <fieldset style="border: 1px solid #cbd5e1; padding: 15px; margin-bottom: 15px; border-radius: 6px; background-color: #f8fafc;">
             <legend style="font-weight: bold; color: #0f172a; padding: 0 5px;">Datos del Registrador</legend>
@@ -496,7 +500,7 @@
     /* ==========================================
        VARIABLES GLOBALES Y CATÁLOGOS COMPLETOS
        ========================================== */
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIxoAh3uyrJ5EAywyIuYPNg3RwviuSzIWceNbUF4QOZtKDwk0swvEe2lpXok04Fkxt/exec";
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx7EdLYwbuy-8j78mE4KRN-tNuYOxxzjzfrDjXT15QQ-nlXUS2p_0HyIQ-YII8pGe4Jeg/exec";
     
     let personaId = 0; let vacunaId = 0;  
     let mapaInteractivo = null; let chincheta = null;
@@ -1496,7 +1500,8 @@
             localStorage.setItem('censia_bitacora_hoy', JSON.stringify(bitacora));
             // ========================================================
 
-            if (!navigator.onLine) {
+            // SE DESHABILITA EL ENVÍO AUTOMÁTICO DE REGISTROS, SE REEMPLAZA POR BOTÓN DE ENVÍO (SE DEJA POR SI ES NECESARIO REVERTIR 261111)
+            /*if (!navigator.onLine) {
                 guardarEnColaLocal(payload, tAct, respCierre, payload.general.domicilio_visitado, payload.general.situacion_domicilio, payload.general.caso_en_domicilio);
                 btnGuardar.innerHTML = textoOriginalBtn;
                 btnGuardar.disabled = false;
@@ -1538,7 +1543,18 @@
                 
                 const idEdOculto = document.getElementById('id_registro_edicion_oculto');
                 if (idEdOculto) idEdOculto.value = "";
-            });
+            });*/
+
+            // NUEVO COMPORTAMIENTO OFFLINE-FIRST: SIEMPRE se guarda localmente y se encola.
+            guardarEnColaLocal(payload, tAct, respCierre, payload.general.domicilio_visitado, payload.general.situacion_domicilio, payload.general.caso_en_domicilio);
+            
+            btnGuardar.innerHTML = textoOriginalBtn;
+            btnGuardar.disabled = false;
+            btnGuardar.style.backgroundColor = "#4f46e5";
+            
+            // Limpiamos el ID oculto para desenganchar el modo edición
+            const idEdOculto = document.getElementById('id_registro_edicion_oculto');
+            if (idEdOculto) idEdOculto.value = "";
             
         } catch (errorFatal) {
             alert("❌ ERROR INTERNO AL PREPARAR LOS DATOS:\n\n" + errorFatal.message);
@@ -1582,35 +1598,59 @@
         let cola = JSON.parse(localStorage.getItem('censia_cola_envios') || '[]');
         if (cola.length === 0) return;
 
+        // 1. NUEVA LEYENDA DE ADVERTENCIA REQUERIDA
+        const confirmar = confirm("⚠️ ADVERTENCIA: Una vez que se envíen estos registros a la base de datos, ya NO será posible visualizarlos ni editarlos a través de la app.\n\n¿Deseas continuar?");
+        if (!confirmar) return; // Si el usuario cancela, abortamos la sincronización.
+
         const btnSync = document.getElementById('btn_sincronizar');
         btnSync.innerHTML = "⏳ Sincronizando datos...";
         btnSync.disabled = true;
         
         let pendientesFallidos = [];
         let exitosos = 0;
+        let idsExitosos = []; // Llevaremos el control de cuáles sí se lograron subir
 
         for (let i = 0; i < cola.length; i++) {
             try {
                 await fetch(GOOGLE_SCRIPT_URL, {
                     method: 'POST',
-                    mode: 'no-cors',
+                    mode: 'no-cors', // Mantiene el modo de envío en segundo plano
                     body: JSON.stringify(cola[i]),
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' }
                 });
                 exitosos++; 
+                
+                // Guardamos el ID del registro que se envió con éxito
+                if (cola[i].general && cola[i].general.id_registro_edicion) {
+                    idsExitosos.push(cola[i].general.id_registro_edicion);
+                }
             } catch(e) {
+                // Si falla (por red intermitente), lo regresamos a la lista de pendientes
                 pendientesFallidos.push(cola[i]); 
             }
         }
 
+        // Sobreescribimos la cola solo con los que hayan fallado
         localStorage.setItem('censia_cola_envios', JSON.stringify(pendientesFallidos));
+        
+        // =========================================================
+        // 2. BORRAMOS LOS REGISTROS EXITOSOS DE LA BITÁCORA DE EDICIÓN
+        // =========================================================
+        if (idsExitosos.length > 0) {
+            let bitacora = JSON.parse(localStorage.getItem('censia_bitacora_hoy') || '[]');
+            // Filtramos la bitácora: conservamos SOLO los que NO estén en la lista de exitosos
+            bitacora = bitacora.filter(reg => !idsExitosos.includes(reg.general.id_registro_edicion));
+            localStorage.setItem('censia_bitacora_hoy', JSON.stringify(bitacora));
+        }
+        // =========================================================
+
         actualizarBotonSincronizacion();
         btnSync.disabled = false;
         
         if (pendientesFallidos.length === 0) {
-            alert(`✅ Sincronización Completa.\n\nSe enviaron ${exitosos} registro(s) correctamente a la base de datos.`);
+            alert(`✅ Sincronización Completa.\n\nSe enviaron ${exitosos} registro(s) correctamente a la base de datos.\n\nComo medida de seguridad, han sido removidos de la memoria del dispositivo.`);
         } else {
-            alert(`⚠️ Sincronización Parcial.\n\nSe enviaron ${exitosos} registros. Faltaron ${pendientesFallidos.length}. Intenta de nuevo.`);
+            alert(`⚠️ Sincronización Parcial.\n\nSe enviaron ${exitosos} registros. Faltaron ${pendientesFallidos.length} por falla de red. Intenta de nuevo más tarde.`);
         }
     }
 
@@ -2197,21 +2237,29 @@
             return;
         }
 
-        // Dibujamos cada registro como una tarjeta interactiva (Mantiene su orden original)
+        // Dibujamos cada registro como una tarjeta interactiva
         bitacora.forEach(reg => {
             const gen = reg.general;
-            const totalPacientes = reg.pacientes ? reg.pacientes.length : 0;
+            let totalPacientes = reg.pacientes ? reg.pacientes.length : 0;
             let titulo = gen.tipo_actividad || 'Actividad';
             let subtitulo = `${gen.calle_numero || 'S/D'} ${gen.colonia || ''}`;
             
-            // Extraemos el nombre y apellido del primer paciente para mostrarlo en la tarjeta
+            // Extraemos el nombre y evaluamos si realmente hay personas registradas
             let nombreVisible = "Sin nombre registrado";
             if (reg.pacientes && reg.pacientes.length > 0) {
                 const p = reg.pacientes[0];
                 const nombre = p.nombres ? p.nombres.toString().trim() : "";
                 const paterno = p.paterno ? p.paterno.toString().trim() : "";
+                
                 if (nombre || paterno) {
                     nombreVisible = `${nombre} ${paterno}`.trim();
+                } else {
+                    // Si el único paciente en el arreglo no tiene nombre, es un paciente "fantasma" 
+                    // generado por casas deshabitadas, lotes, ausentes o negativas de registro.
+                    if (totalPacientes === 1) {
+                        totalPacientes = 0;
+                        nombreVisible = "N/A (Sin personas)";
+                    }
                 }
             }
             
@@ -2225,7 +2273,7 @@
                             <strong style="color: #0f172a; display: block; font-size: 1.1em;">${titulo.toUpperCase()}</strong>
                             <span style="color: #1d4ed8; font-size: 1em; display: block; margin-top: 4px; font-weight: bold;">👤 ${nombreVisible}</span>
                             <span style="color: #334155; font-size: 0.9em; display: block; margin-top: 4px; font-weight: 500;">📍 ${subtitulo}</span>
-                            <span style="color: #10b981; font-size: 0.85em; display: block; margin-top: 4px;">👥 Personas vacunadas: <b>${totalPacientes}</b></span>
+                            <span style="color: #10b981; font-size: 0.85em; display: block; margin-top: 4px;">👥 Personas registradas: <b>${totalPacientes}</b></span>
                             <span style="color: #64748b; font-size: 0.8em; display: block; margin-top: 6px;">🕒 Guardado a las: ${reg.hora_guardado_local || 'N/D'}</span>
                         </div>
                         <button onclick="cargarRegistroParaEdicion('${gen.id_registro_edicion}')" style="background-color: #f59e0b; color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(245,158,11,0.3);">
