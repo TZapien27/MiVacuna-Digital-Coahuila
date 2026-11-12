@@ -500,7 +500,7 @@
     /* ==========================================
        VARIABLES GLOBALES Y CATÁLOGOS COMPLETOS
        ========================================== */
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx7EdLYwbuy-8j78mE4KRN-tNuYOxxzjzfrDjXT15QQ-nlXUS2p_0HyIQ-YII8pGe4Jeg/exec";
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyl_yI0yrsdG3Qw_RN2AwnhDgupSnoFBrnXMlC81BcN2XvWkC4tjWALiZI01ppKo-56YQ/exec";
     
     let personaId = 0; let vacunaId = 0;  
     let mapaInteractivo = null; let chincheta = null;
@@ -1091,15 +1091,33 @@
 
     function agregarVacunaAPersona(pId) {
         vacunaId++; const vId = vacunaId; 
-        const fBase = document.getElementById('fecha_actividad').value;
+        const fBase = document.getElementById('fecha_actividad') ? document.getElementById('fecha_actividad').value : '';
         
-        // --- LÓGICA INTELIGENTE: FECHAS EN BLANCO PARA MÓDULO FIJO ---
+        // --- NUEVO: OBTENER LA FECHA ACTUAL EN FORMATO DD/MM/AAAA ---
+        const hoy = new Date();
+        const dia = String(hoy.getDate()).padStart(2, '0');
+        const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+        const anio = hoy.getFullYear();
+        const fechaHoy = `${dia}/${mes}/${anio}`;
+        // -----------------------------------------------------------
+        
         const tActActual = document.getElementById('tipo_actividad') ? document.getElementById('tipo_actividad').value : '';
         const vacunasPrevias = document.querySelectorAll(`.vacuna-de-p${pId}`).length;
         
         let atributoFechaDefecto = `value="${fBase}"`; 
-        if (tActActual === 'modulo_fijo' && vacunasPrevias > 0) {
-            atributoFechaDefecto = ""; // A partir de la segunda vacuna, nace en blanco
+        
+        // --- LÓGICA INTELIGENTE: FECHAS POR DEFECTO ---
+        if (vacunasPrevias === 0) {
+            // Es la PRIMERA vacuna de la persona: Forzamos la fecha actual (HOY)
+            atributoFechaDefecto = `value="${fechaHoy}"`;
+        } 
+        else if (tActActual === 'modulo_fijo' && vacunasPrevias > 0) {
+            // A partir de la segunda vacuna en Módulo Fijo, nace en blanco
+            atributoFechaDefecto = ""; 
+        } 
+        else {
+            // A partir de la segunda en Barrido/Bloqueo, arrastra la base o la de hoy si la base está vacía
+            atributoFechaDefecto = `value="${fBase || fechaHoy}"`;
         }
         // -------------------------------------------------------------
 
@@ -1171,14 +1189,44 @@
             let letra = p.sit || p.dom || '';
             let sitLarga = p.sit || ''; // Texto extendido para que no se vea solo una letra
             
-            if(letra === 'Caso') { color = 'radar-rojo'; sitLarga = 'Caso Probable/Sospechoso'; }
-            else if(letra === 'MF') { color = 'radar-azul'; sitLarga = 'Módulo Fijo'; } 
-            else if(letra === 'CN') { color = 'radar-verde'; sitLarga = 'Con Niños'; }
-            else if(letra === 'V' || letra === 'SN_REG') { color = 'radar-verde'; letra = 'SN'; sitLarga = 'Sin Niños (Registrados)'; }
-            else if(letra === 'A' || letra === 'SN' || letra === 'SN_NO') { color = 'radar-amarillo'; sitLarga = (letra === 'A' ? 'Ausente' : 'Sin Niños'); letra = (letra === 'A' ? 'A' : 'SN'); }
-            else if(letra === 'R') { color = 'radar-rojo'; sitLarga = 'Renuente'; }
-            else if(letra === 'N_CON' || letra === 'N_SIN' || letra === 'negocio') { color = 'radar-azul'; sitLarga = 'Negocio'; letra = 'N'; }
-            else if(letra === 'lote_baldio' || letra === 'deshabitada') { color = 'radar-gris'; sitLarga = (letra === 'lote_baldio' ? 'Lote Baldío' : 'Deshabitada'); letra = 'DH'; }
+            if(letra === 'Caso') { 
+                color = 'radar-rojo'; 
+                sitLarga = 'Caso Probable/Sospechoso'; 
+            }
+            else if(letra === 'MF') { 
+                color = 'radar-azul'; 
+                sitLarga = 'Módulo Fijo'; 
+            } 
+            else if(letra === 'CN') { 
+                color = 'radar-verde'; 
+                sitLarga = 'Con Niños'; 
+            }
+            // --- CORRECCIÓN: TODO LO DE SIN NIÑOS (CON O SIN REGISTRO) AHORA ES VERDE ---
+            else if(letra === 'V' || letra === 'SN_REG' || letra === 'SN' || letra === 'SN_NO') { 
+                color = 'radar-verde'; 
+                letra = 'SN'; 
+                sitLarga = (letra === 'SN_REG' || letra === 'V') ? 'Sin Niños (Registrados)' : 'Sin Niños'; 
+            }
+            // --------------------------------------------------------------------------
+            else if(letra === 'A') { 
+                color = 'radar-amarillo'; 
+                sitLarga = 'Ausente'; 
+                letra = 'A'; 
+            }
+            else if(letra === 'R') { 
+                color = 'radar-rojo'; 
+                sitLarga = 'Renuente'; 
+            }
+            else if(letra === 'N_CON' || letra === 'N_SIN' || letra === 'negocio') { 
+                color = 'radar-azul'; 
+                sitLarga = 'Negocio'; 
+                letra = 'N'; 
+            }
+            else if(letra === 'lote_baldio' || letra === 'deshabitada') { 
+                color = 'radar-gris'; 
+                sitLarga = (letra === 'lote_baldio' ? 'Lote Baldío' : 'Deshabitada'); 
+                letra = 'DH'; 
+            }
             
             const iconHtml = `<div class="pin-radar ${color}">${letra}</div>`;
             let titulo = etiquetasDom[p.dom] || 'Ubicación';
@@ -1902,12 +1950,25 @@
                     bgFondo = 'rgba(59, 130, 246, 0.45)'; colorBorde = 'rgba(59, 130, 246, 0.8)';
                     etiquetaEstatus = "Módulo Fijo";
                 }
-                else if (sit === 'CN' || sit === 'CN_NR' || sit.includes('CON NIÑOS')) {
+
+                /*else if (sit === 'CN' || sit === 'CN_NR' || sit.includes('CON NIÑOS')) {
                     bgFondo = 'rgba(34, 197, 94, 0.45)'; colorBorde = 'rgba(34, 197, 94, 0.8)';
                     etiquetaEstatus = (sit === 'CN_NR' || sit.includes('NO SE REGISTRAN')) ? "Con niños (Sin registro)" : "Con niños (Con registro)";
                 } else if (sit === 'SN_REG' || sit === 'SN_NO' || sit.includes('SIN NIÑOS')) {
                     bgFondo = 'rgba(34, 197, 94, 0.45)'; colorBorde = 'rgba(34, 197, 94, 0.8)';
-                    etiquetaEstatus = (sit === 'SN_NO' || sit.includes('NO SE REGISTRA')) ? "Sin niños (Sin registro)" : "Sin niños (Con registro)";
+                    etiquetaEstatus = (sit === 'SN_NO' || sit.includes('NO SE REGISTRA')) ? "Sin niños (Sin registro)" : "Sin niños (Con registro)";*/
+
+                else if (sit.includes('NIÑO') || sit === 'CN' || sit === 'CN_NR' || sit === 'SN_REG' || sit === 'SN_NO') {
+                    bgFondo = 'rgba(34, 197, 94, 0.45)'; // VERDE
+                    colorBorde = 'rgba(34, 197, 94, 0.8)';
+                    
+                    if (sit.includes('CON NIÑOS') || sit.includes('CN')) {
+                        etiquetaEstatus = (sit.includes('NO SE REGISTRA') || sit === 'CN_NR') ? "Con niños (Sin registro)" : "Con niños (Con registro)";
+                    } else {
+                        etiquetaEstatus = (sit.includes('NO SE REGISTRA') || sit === 'SN_NO') ? "Sin niños (Sin registro)" : "Sin niños (Con registro)";
+                    }
+                }
+                // -----------------------------------------------
                 } else if (sit.includes('N_') || dom.includes('NEGOCIO') || dom.includes('(N)')) {
                     bgFondo = 'rgba(59, 130, 246, 0.45)'; colorBorde = 'rgba(59, 130, 246, 0.8)';
                     etiquetaEstatus = (sit === 'N_SIN' || sit.includes('SIN PERSONAS')) ? "Negocio (Sin personas por vacunar)" : "Negocio (Con personas por vacunar)";
@@ -2056,8 +2117,8 @@
     });
 
     /* =======================================================
-   SISTEMA DE SANITIZACIÓN AUTOMÁTICA (MAYÚSCULAS Y SIN ACENTOS)
-    ======================================================= */
+   SISTEMA DE SANITIZACIÓN AUTOMÁTICA (MAYÚSCULAS Y SIN ACENTOS) *** AL 12/11/2026
+    ======================================================= 
     function limpiarTexto(texto) {
         // Quita acentos (normalize NFD), caracteres diacríticos y convierte a mayúsculas
         return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
@@ -2078,7 +2139,21 @@
             // Restauramos el cursor a donde estaba
             e.target.setSelectionRange(inicioCursor, finCursor);
         }
-    });
+    });*/
+
+    /* =======================================================
+   SANITIZACIÓN SEGURA (SOLO AL SALIR DEL CAMPO, NO EN VIVO)
+   ======================================================= */
+    function limpiarTexto(texto) {
+        return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+    }
+
+    // Se ejecuta SOLAMENTE cuando el usuario termina de escribir y sale del input (blur)
+    document.addEventListener('blur', function(e) {
+        if ((e.target.tagName === 'INPUT' && e.target.type === 'text') || e.target.tagName === 'TEXTAREA') {
+            e.target.value = limpiarTexto(e.target.value);
+        }
+    }, true); // El 'true' es para que capture el evento correctamente en cualquier campo
 
     /* =======================================================
    GENERADOR EN TIEMPO REAL DEL IDENTIFICADOR (Bloqueado)
