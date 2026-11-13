@@ -17,6 +17,11 @@
     <meta name="apple-mobile-web-app-title" content="Censo SS">
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- LIBRERÍAS PARA AGRUPAR PUNTOS (MARKER CLUSTER) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    //
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.css" rel="stylesheet">
@@ -117,7 +122,6 @@
             <img src="img/logo MVDC.jpeg" alt="MiVacuna Digital Coahuila" style="height: 60px; width: auto;">
         </div>
     </header>
-    
 
     <div class="contenedor" id="formulario_maestro">
     <!-- MÓDULO DE BÚSQUEDA DE PACIENTES -->
@@ -346,10 +350,40 @@
     <button type="button" id="btn_sincronizar" class="btn btn-sincronizar oculto" onclick="sincronizarPendientes()">
         🔄 Sincronizar Datos Pendientes (0)
     </button>
+
+    <button type="button" id="btn_cerrar_sesion" class="btn" onclick="cerrarSesion()" style="background-color: #ef4444; color: white; padding: 6px 12px; border-radius: 4px; border: none; cursor: pointer;">
+    🚪 Cerrar Sesión
+    </button>
+
 </div>
 </div>
 
 <script>
+    /* =======================================================
+       AUTOLOGIN / SESIÓN PERSISTENTE AL RECARGAR LA PÁGINA
+    ======================================================= */
+    document.addEventListener("DOMContentLoaded", function() {
+        const usuarioActivo = localStorage.getItem('censia_usuario_activo');
+        
+        if (usuarioActivo) {
+            console.log("🔓 Sesión activa detectada para:", usuarioActivo);
+            
+            // Ocultamos el login y mostramos la app principal
+            const pantallaLogin = document.getElementById('pantalla_login');
+            const appPrincipal = document.getElementById('aplicacion_principal'); // Ajusta el ID si tu contenedor principal se llama diferente
+            
+            if (pantallaLogin) pantallaLogin.classList.add('oculto');
+            if (appPrincipal) appPrincipal.classList.remove('oculto');
+            
+            // Disparamos las funciones de arranque del entorno
+            setTimeout(() => {
+                if (typeof evaluarFlujoLogico === 'function') evaluarFlujoLogico();
+                if (typeof inicializarMapaDefecto === 'function') inicializarMapaDefecto();
+                if (typeof cargarHistorialGpsRemoto === 'function') cargarHistorialGpsRemoto();
+            }, 200);
+        }
+    });
+
     /* =======================================================
        LIMPIEZA AUTOMÁTICA DE CAMBIO DE DÍA
     ======================================================= */
@@ -1905,12 +1939,28 @@
             const respuesta = await fetch(url, { method: 'GET', redirect: 'follow' });
             const puntos = await respuesta.json();
 
-            if (!puntos || !Array.isArray(puntos) || puntos.length === 0) {
+            /*if (!puntos || !Array.isArray(puntos) || puntos.length === 0) {
                 console.log("⚠️ No se recibieron puntos de la base de datos.");
                 return;
             }
 
             console.log(`📊 Se recibieron ${puntos.length} puntos agrupados desde el servidor. Procesando...`);
+            let pintados = 0;*/
+
+            // ... (El código de filtrado e íconos se queda igual)
+
+            // 1. ANTES DEL FOREACH: Creamos la "bolsa" agrupadora
+            // Si ya había una bolsa anterior, la borramos para no duplicar puntos
+            if (window.clusterHistorico) {
+                mapaInteractivo.removeLayer(window.clusterHistorico);
+            }
+            
+            window.clusterHistorico = L.markerClusterGroup({
+                chunkedLoading: true, // Vital para cargar miles de puntos sin trabar el celular
+                maxClusterRadius: 50, // Distancia en píxeles para agruparlos (puedes subirlo a 80 para agrupar más)
+                spiderfyOnMaxZoom: true // Si hay 2 casas encimadas en la misma coordenada, las separa como telaraña al dar clic
+            });
+
             let pintados = 0;
 
             puntos.forEach(p => {
@@ -2026,17 +2076,20 @@
                     </div>
                 `;
 
-                L.marker([latNum, lonNum], { 
+                let marcador = L.marker([latNum, lonNum], { 
                     icon: iconoHistoricoDinamico,
                     esHistoricoRemoto: true
                 })
                 .bindPopup(htmlPopup)
-                .addTo(mapaInteractivo);
-                
+                //.addTo(mapaInteractivo);
+                // 2. DENTRO DEL FOREACH: En lugar de .addTo(mapaInteractivo), lo metemos a la bolsa
+                window.clusterHistorico.addLayer(marcador);                
                 pintados++;
             });
 
             console.log(`✅ ¡Éxito! Se dibujaron ${pintados} puntos en el mapa para la jurisdicción ${filtroJurisdiccion} y la institución ${instUsuario}.`);
+            mapaInteractivo.addLayer(window.clusterHistorico);
+            console.log(`✅ ¡Éxito! Se agruparon ${pintados} puntos en el mapa.`);
 
         } catch (error) {
             console.error("❌ Fallo crítico al procesar el historial remoto:", error);
@@ -2559,6 +2612,47 @@
         } else {
             // Si es otro municipio sin AGEBs en catálogo, forzamos a que solo aparezca "Otro"
             tsAgeb.addOption({value: "Otro", text: "Otro"});
+        }
+    }
+
+    /* =======================================================
+    CIERRE DE SESIÓN MANUAL
+    ======================================================= */
+    function cerrarSesion() {
+        if (confirm("¿Estás seguro de que deseas cerrar sesión? Los datos pendientes de sincronizar deben haberse guardado previamente.")) {
+            
+            // 1. Limpiamos los datos de sesión del navegador
+            localStorage.removeItem('censia_usuario_activo');
+            localStorage.removeItem('censia_jurisdiccion_activa');
+            localStorage.removeItem('censia_institucion');
+            localStorage.removeItem('censia_nombre_real');
+            
+            // 2. Ocultamos la aplicación principal
+            const appPrincipal = document.getElementById('aplicacion_principal');
+            if (appPrincipal) {
+                appPrincipal.classList.add('oculto');
+            }
+            
+            // 3. Mostramos la pantalla de login
+            const pantallaLogin = document.getElementById('pantalla_login');
+            if (pantallaLogin) {
+                pantallaLogin.classList.remove('oculto');
+            }
+            
+            // 4. Limpiamos los campos de texto del login por seguridad
+            const inputUsuario = document.getElementById('login_usuario');
+            const inputPass = document.getElementById('login_password');
+            if (inputUsuario) inputUsuario.value = '';
+            if (inputPass) inputPass.value = '';
+            
+            // 5. Opcional: Limpiamos mensajes de error previos
+            const msgLogin = document.getElementById('mensaje_login');
+            if (msgLogin) {
+                msgLogin.textContent = '';
+                msgLogin.classList.add('oculto');
+            }
+            
+            console.log("🔒 Sesión cerrada manualmente con éxito.");
         }
     }
 
