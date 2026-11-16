@@ -141,7 +141,7 @@
     
     <!-- 1. DATOS GENERALES DE LA JORNADA -->
     <div class="tarjeta" id="bloque_datos_generales">
-        <h2>1. Datos Generales de la Jornada <span style="color: #ef4444; font-size: 0.8rem; background: #fee2e2; padding: 2px 6px; border-radius: 4px; float: right;">v15.85</span></h2>
+        <h2>1. Datos Generales de la Jornada. <span style="color: #ef4444; font-size: 0.8rem; background: #fee2e2; padding: 2px 6px; border-radius: 4px; float: right;">v15.85</span></h2>
         
         <fieldset style="border: 1px solid #cbd5e1; padding: 15px; margin-bottom: 15px; border-radius: 6px; background-color: #f8fafc;">
             <legend style="font-weight: bold; color: #0f172a; padding: 0 5px;">Datos del Registrador</legend>
@@ -422,6 +422,7 @@
         btn.disabled = true;
         msg.classList.add('oculto');
         
+        // 1. INTENTO DE ACCESO ONLINE (Con red)
         fetch(GOOGLE_SCRIPT_URL, {
             method: 'POST',
             body: JSON.stringify({ action: 'login', usuario: user, password: pass }),
@@ -430,90 +431,22 @@
         .then(response => response.json())
         .then(data => {
             if (data.status === 'success') {
-                localStorage.setItem('censia_usuario_activo', data.user);
-                localStorage.setItem('censia_jurisdiccion_activa', data.jurisdiccion || '');
+                // A. Guardamos sesión activa en el navegador
+                guardarSesionEnMemoria(data);
 
-                const inputNombre = document.getElementById('registrador_nombre');
-                const inputInst = document.getElementById('registrador_institucion');
-                
-                if (inputNombre) {
-                    inputNombre.value = data.nombre_real || data.user;
-                    inputNombre.readOnly = true; 
-                    inputNombre.style.backgroundColor = '#f1f5f9';
-                }
-                if (inputInst) {
-                    let existeOpcion = Array.from(inputInst.options).some(opt => opt.value === data.institucion);
-                    if (!existeOpcion && data.institucion) {
-                        inputInst.add(new Option(data.institucion, data.institucion));
-                    }
-                    inputInst.value = data.institucion || '';
-                    inputInst.readOnly = true;
-                    inputInst.disabled = true; 
-                    inputInst.style.backgroundColor = '#f1f5f9';
-                }
+                // B. CACHÉ OFFLINE: Guardamos estas credenciales locales para cuando estén en modo avión
+                let cacheUsuarios = JSON.parse(localStorage.getItem('censia_cache_usuarios') || '{}');
+                cacheUsuarios[user.toLowerCase()] = {
+                    password: pass,
+                    nombre_real: data.nombre_real,
+                    institucion: data.institucion,
+                    jurisdiccion: data.jurisdiccion
+                };
+                localStorage.setItem('censia_cache_usuarios', JSON.stringify(cacheUsuarios));
 
-                const inputJuris = document.getElementById('jurisdiccion');
-                if (inputJuris && data.jurisdiccion) {
-                    const tsJuris = (typeof tomSelectInstances !== 'undefined') ? tomSelectInstances['jurisdiccion'] : null;
-                    const jurisDB = data.jurisdiccion;
-                    
-                    if (jurisDB.toUpperCase() !== 'ESTATAL') {
-                        let jurisExacta = "";
-                        if (typeof mapaJurisMunicipio !== 'undefined') {
-                            jurisExacta = Object.keys(mapaJurisMunicipio).find(k => k.toUpperCase() === jurisDB.toUpperCase()) || jurisDB;
-                        } else {
-                            jurisExacta = jurisDB;
-                        }
+                // C. Lanzamos tu interfaz intacta
+                procesarEntradaExitosiva(data);
 
-                        if (tsJuris) {
-                            if (!tsJuris.options[jurisExacta]) tsJuris.addOption({value: jurisExacta, text: jurisExacta});
-                            tsJuris.setValue(jurisExacta);
-                            tsJuris.disable(); 
-                        } else {
-                            inputJuris.value = jurisExacta;
-                            inputJuris.disabled = true;
-                        }
-                        
-                        if (typeof filtrarMunicipiosPorJurisdiccion === 'function') {
-                            filtrarMunicipiosPorJurisdiccion(jurisExacta);
-                        }
-                    } else {
-                        if (tsJuris) tsJuris.enable();
-                        else inputJuris.disabled = false;
-                    }
-                }
-
-                const idEntidad = 'entidad';
-                const inputEnt = document.getElementById(idEntidad);
-                const tsEntidad = (typeof tomSelectInstances !== 'undefined') ? tomSelectInstances[idEntidad] : null;
-
-                if (tsEntidad) {
-                    tsEntidad.setValue('05 Coahuila');
-                    tsEntidad.control.style.pointerEvents = 'none';
-                    tsEntidad.control.style.backgroundColor = '#e9ecef';
-                    if (tsEntidad.control_input) tsEntidad.control_input.tabIndex = -1;
-                } else if (inputEnt) {
-                    inputEnt.value = '05 Coahuila';
-                    inputEnt.style.pointerEvents = 'none';
-                    inputEnt.style.backgroundColor = '#e9ecef';
-                    inputEnt.tabIndex = -1;
-                }
-
-                document.getElementById('pantalla_login').classList.add('oculto');
-                document.getElementById('aplicacion_principal').classList.remove('oculto');
-                
-                setTimeout(() => {
-                    document.querySelectorAll('.tarjeta-persona').forEach(t => {
-                        const pId = t.id.split('_').pop();
-                        if (typeof evaluarCascadaIMSS === 'function') evaluarCascadaIMSS(pId);
-                    });
-
-                    if (typeof mapaInteractivo !== 'undefined' && mapaInteractivo !== null) {
-                        mapaInteractivo.invalidateSize();
-                    }
-                    
-                    if (typeof cargarHistorialGpsRemoto === 'function') cargarHistorialGpsRemoto();
-                }, 300);
             } else {
                 msg.textContent = data.message || "Credenciales incorrectas.";
                 msg.classList.remove('oculto');
@@ -522,12 +455,131 @@
             }
         })
         .catch(error => {
-            console.error(error);
-            msg.textContent = "Error de red. Verifica tu conexión.";
-            msg.classList.remove('oculto');
-            btn.innerHTML = "Ingresar al Sistema";
-            btn.disabled = false;
+            // 2. INTENTO DE ACCESO OFFLINE (Sin señal / Modo Avión detectado)
+            console.warn("⚠️ Sin conexión a red. Verificando caché local de credenciales...", error);
+            
+            let cacheUsuarios = JSON.parse(localStorage.getItem('censia_cache_usuarios') || '{}');
+            let userKey = user.toLowerCase();
+            
+            if (cacheUsuarios[userKey] && cacheUsuarios[userKey].password === pass) {
+                console.log("✅ ¡Acceso OFFLINE concedido desde la memoria del dispositivo para:", user);
+                
+                let dataLocal = {
+                    user: user,
+                    nombre_real: cacheUsuarios[userKey].nombre_real,
+                    institucion: cacheUsuarios[userKey].institucion,
+                    jurisdiccion: cacheUsuarios[userKey].jurisdiccion
+                };
+                
+                // Guardamos sesión activa local
+                guardarSesionEnMemoria(dataLocal);
+                
+                // Aviso de cortesía para el brigadista en campo
+                alert("⚠️ DISPOSITIVO SIN SEÑAL: Entrando en modo OFFLINE. Los registros se almacenarán localmente hasta que decidas sincronizar.");
+
+                // Lanzamos tu interfaz intacta
+                procesarEntradaExitosiva(dataLocal);
+
+            } else {
+                console.error(error);
+                msg.textContent = "❌ Sin conexión a internet y este usuario no tiene una sesión previa guardada en este dispositivo.";
+                msg.classList.remove('oculto');
+                btn.innerHTML = "Ingresar al Sistema";
+                btn.disabled = false;
+            }
         });
+    }
+
+    // Funciones auxiliares para mantener tu estructura limpia y modular
+    function guardarSesionEnMemoria(data) {
+        localStorage.setItem('censia_usuario_activo', data.user);
+        localStorage.setItem('censia_jurisdiccion_activa', data.jurisdiccion || '');
+        localStorage.setItem('censia_institucion', data.institucion || '');
+        localStorage.setItem('censia_nombre_real', data.nombre_real || '');
+    }
+
+    function procesarEntradaExitosiva(data) {
+        const inputNombre = document.getElementById('registrador_nombre');
+        const inputInst = document.getElementById('registrador_institucion');
+        
+        if (inputNombre) {
+            inputNombre.value = data.nombre_real || data.user;
+            inputNombre.readOnly = true; 
+            inputNombre.style.backgroundColor = '#f1f5f9';
+        }
+        if (inputInst) {
+            let existeOpcion = Array.from(inputInst.options).some(opt => opt.value === data.institucion);
+            if (!existeOpcion && data.institucion) {
+                inputInst.add(new Option(data.institucion, data.institucion));
+            }
+            inputInst.value = data.institucion || '';
+            inputInst.readOnly = true;
+            inputInst.disabled = true; 
+            inputInst.style.backgroundColor = '#f1f5f9';
+        }
+
+        const inputJuris = document.getElementById('jurisdiccion');
+        if (inputJuris && data.jurisdiccion) {
+            const tsJuris = (typeof tomSelectInstances !== 'undefined') ? tomSelectInstances['jurisdiccion'] : null;
+            const jurisDB = data.jurisdiccion;
+            
+            if (jurisDB.toUpperCase() !== 'ESTATAL') {
+                let jurisExacta = "";
+                if (typeof mapaJurisMunicipio !== 'undefined') {
+                    jurisExacta = Object.keys(mapaJurisMunicipio).find(k => k.toUpperCase() === jurisDB.toUpperCase()) || jurisDB;
+                } else {
+                    jurisExacta = jurisDB;
+                }
+
+                if (tsJuris) {
+                    if (!tsJuris.options[jurisExacta]) tsJuris.addOption({value: jurisExacta, text: jurisExacta});
+                    tsJuris.setValue(jurisExacta);
+                    tsJuris.disable(); 
+                } else {
+                    inputJuris.value = jurisExacta;
+                    inputJuris.disabled = true;
+                }
+                
+                if (typeof filtrarMunicipiosPorJurisdiccion === 'function') {
+                    filtrarMunicipiosPorJurisdiccion(jurisExacta);
+                }
+            } else {
+                if (tsJuris) tsJuris.enable();
+                else inputJuris.disabled = false;
+            }
+        }
+
+        const idEntidad = 'entidad';
+        const inputEnt = document.getElementById(idEntidad);
+        const tsEntidad = (typeof tomSelectInstances !== 'undefined') ? tomSelectInstances[idEntidad] : null;
+
+        if (tsEntidad) {
+            tsEntidad.setValue('05 Coahuila');
+            tsEntidad.control.style.pointerEvents = 'none';
+            tsEntidad.control.style.backgroundColor = '#e9ecef';
+            if (tsEntidad.control_input) tsEntidad.control_input.tabIndex = -1;
+        } else if (inputEnt) {
+            inputEnt.value = '05 Coahuila';
+            inputEnt.style.pointerEvents = 'none';
+            inputEnt.style.backgroundColor = '#e9ecef';
+            inputEnt.tabIndex = -1;
+        }
+
+        document.getElementById('pantalla_login').classList.add('oculto');
+        document.getElementById('aplicacion_principal').classList.remove('oculto');
+        
+        setTimeout(() => {
+            document.querySelectorAll('.tarjeta-persona').forEach(t => {
+                const pId = t.id.split('_').pop();
+                if (typeof evaluarCascadaIMSS === 'function') evaluarCascadaIMSS(pId);
+            });
+
+            if (typeof mapaInteractivo !== 'undefined' && mapaInteractivo !== null) {
+                mapaInteractivo.invalidateSize();
+            }
+            
+            if (typeof cargarHistorialGpsRemoto === 'function') cargarHistorialGpsRemoto();
+        }, 300);
     }
 
     /* ==========================================
