@@ -422,7 +422,7 @@
         btn.disabled = true;
         msg.classList.add('oculto');
         
-        // 1. INTENTO DE ACCESO ONLINE (Con red)
+        // 1. INTENTO ONLINE (Con conexión)
         fetch(GOOGLE_SCRIPT_URL, {
             method: 'POST',
             body: JSON.stringify({ action: 'login', usuario: user, password: pass }),
@@ -431,10 +431,9 @@
         .then(response => response.json())
         .then(data => {
             if (data.status === 'success') {
-                // A. Guardamos sesión activa en el navegador
                 guardarSesionEnMemoria(data);
 
-                // B. CACHÉ OFFLINE: Guardamos estas credenciales locales para cuando estén en modo avión
+                // A. Guardamos credenciales en caché offline
                 let cacheUsuarios = JSON.parse(localStorage.getItem('censia_cache_usuarios') || '{}');
                 cacheUsuarios[user.toLowerCase()] = {
                     password: pass,
@@ -444,7 +443,11 @@
                 };
                 localStorage.setItem('censia_cache_usuarios', JSON.stringify(cacheUsuarios));
 
-                // C. Lanzamos tu interfaz intacta
+                // B. BLINDAJE MAESTRO: Guardamos una copia del catálogo de municipios en el teléfono para cuando estén offline
+                if (typeof mapaJurisMunicipio !== 'undefined') {
+                    localStorage.setItem('censia_cache_mapa_juris', JSON.stringify(mapaJurisMunicipio));
+                }
+
                 procesarEntradaExitosiva(data);
 
             } else {
@@ -455,14 +458,14 @@
             }
         })
         .catch(error => {
-            // 2. INTENTO DE ACCESO OFFLINE (Sin señal / Modo Avión detectado)
-            console.warn("⚠️ Sin conexión a red. Verificando caché local de credenciales...", error);
+            // 2. INTENTO OFFLINE (Modo Avión / Sin señal)
+            console.warn("⚠️ Sin conexión a red. Activando recuperación desde caché local...", error);
             
             let cacheUsuarios = JSON.parse(localStorage.getItem('censia_cache_usuarios') || '{}');
             let userKey = user.toLowerCase();
             
             if (cacheUsuarios[userKey] && cacheUsuarios[userKey].password === pass) {
-                console.log("✅ ¡Acceso OFFLINE concedido desde la memoria del dispositivo para:", user);
+                console.log("✅ ¡Acceso OFFLINE concedido para:", user);
                 
                 let dataLocal = {
                     user: user,
@@ -471,18 +474,23 @@
                     jurisdiccion: cacheUsuarios[userKey].jurisdiccion
                 };
                 
-                // Guardamos sesión activa local
                 guardarSesionEnMemoria(dataLocal);
-                
-                // Aviso de cortesía para el brigadista en campo
-                alert("⚠️ DISPOSITIVO SIN SEÑAL: Entrando en modo OFFLINE. Los registros se almacenarán localmente hasta que decidas sincronizar.");
 
-                // Lanzamos tu interfaz intacta
+                // C. RESTAURACIÓN MAESTRO: Inyectamos el catálogo guardado en la memoria global si no existe
+                if (typeof mapaJurisMunicipio === 'undefined' || Object.keys(mapaJurisMunicipio).length === 0) {
+                    let mapaGuardado = localStorage.getItem('censia_cache_mapa_juris');
+                    if (mapaGuardado) {
+                        window.mapaJurisMunicipio = JSON.parse(mapaGuardado);
+                        console.log("📂 Catálogo de municipios restaurado exitosamente desde el almacenamiento local.");
+                    }
+                }
+                
+                alert("⚠️ DISPOSITIVO SIN SEÑAL: Entrando en modo OFFLINE con catálogos locales sincronizados.");
                 procesarEntradaExitosiva(dataLocal);
 
             } else {
                 console.error(error);
-                msg.textContent = "❌ Sin conexión a internet y este usuario no tiene una sesión previa guardada en este dispositivo.";
+                msg.textContent = "❌ Sin conexión a internet y este usuario no tiene una sesión previa en este dispositivo.";
                 msg.classList.remove('oculto');
                 btn.innerHTML = "Ingresar al Sistema";
                 btn.disabled = false;
@@ -490,7 +498,6 @@
         });
     }
 
-    // Funciones auxiliares para mantener tu estructura limpia y modular
     function guardarSesionEnMemoria(data) {
         localStorage.setItem('censia_usuario_activo', data.user);
         localStorage.setItem('censia_jurisdiccion_activa', data.jurisdiccion || '');
