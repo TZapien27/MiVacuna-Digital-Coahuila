@@ -72,18 +72,7 @@
 </head>
 <body>
 
-    <div style="background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; text-align: center;">
-        <div class="header-logos">
-            <img src="img/logo-ss-fed.jpg" alt="SS Federal">
-            <img src="img/logo-ss-coahuila.jpg" alt="SS Coahuila">
-            <img src="img/logo-coahuila.jpg" alt="Identidad Coahuila">
-            <img src="img/logo-snsp.jpg" alt="SNSP">
-        </div>
-        <h1 style="color: #2c3e50; font-size: 1.3rem; margin: 10px 0 0 0; text-transform: uppercase;">
-            MiVacuna Digital Coahuila <br><span style="color: #ef4444; font-weight: bold; font-size: 1.1rem;">v-15.7</span>
-        </h1>    </div>     
-
-    <div class="contenedor" id="formulario_maestro">
+<div class="contenedor" id="formulario_maestro">
     <!-- MÓDULO DE BÚSQUEDA DE PACIENTES -->
     <div class="tarjeta" id="bloque_buscador" style="background-color: #f8fafc; border-left: 4px solid #3b82f6;">
         <h2 style="color: #1e293b; margin-top: 0; font-size: 1.2em;">🔍 Búsqueda Rápida de Pacientes</h2>
@@ -315,7 +304,7 @@
     let tomSelectInstances = {};
 
     const vacunasPorTipo = {
-        "Infante. (0 a 9 años)": ["BCG", "Anti Hepatitis B", "Hexavalente acelular (DPat-VIP-HB-Hib) 1 dósis", "Hexavalente acelular (DPat-VIP-HB-Hib) 2 dósis", "Hexavalente acelular (DPat-VIP-HB-Hib) 3 dósis", "Hexavalente acelular (DPat-VIP-HB-Hib) refuerzo dosis", "DPT", "Anti Rotavirus 1a", "Anti Rotavirus 2a", "Anti Neumococica conjugada (13 serotipos) 1a", "Anti Neumococica conjugada (13 serotipos) 2a", "Anti Neumococica conjugada (13 serotipos) 3a", "Anti Influenza 1a", "Anti Influenza 2a", "Anti Influenza refuerzo", "SRP 0", "SRP 1a", "SRP 2ª", "VPH Virus del Papiloma Humano", "COVID-19","Otra vacuna"],
+        "Infante. (0 a 9 años)": ["BCG", "Anti Hepatitis B", "Hexavalente acelular (DPat-VIP-HB-Hib) 1 dósis", "Hexavalente acelular (DPat-VIP-HB-Hib) 2 dósis", "Hexavalente acelular (DPat-VIP-HB-Hib) 3 dósis", "Hexavalente acelular (DPat-VIP-HB-Hib) refuerzo dosis", "DPT", "Anti Rotavirus 1a", "Anti Rotavirus 2a", "Anti Neumococica conjugada (13 serotipos) 1a", "Anti Neumococica conjugada (13 serotipos) 2a", "Anti Neumococica conjugada (13 serotipos) 3a", "Anti Influenza 1a", "Anti Influenza 2a", "Anti Influenza refuerzo", "SRP 0", "SRP 1a", "SRP 2ª", "VPH Virus del Papiloma Humano", "COVID-19", "Otra vacuna"],
         "Adolescente. (10 a 19 años)": ["Anti Hepatitis B 1a", "Anti Hepatitis B 2a", "TD 1a", "TD 2a", "TD 3a", "TD refuerzo", "TDPA 1a", "Influenza", "SR 1a", "SR 2a", "SR refuerzo", "VPH (niñas y niños de 5o de primaria y de 11 años no escolarizados)", "Varicela", "Anti Hepatitis A", "COVID-19", "Anti Neumococica conjugada (refuerzo)", "Neumo 23", "Otra vacuna"],
         "Adulto. (20 a 59 años)": ["Anti Hepatitis B 1a", "Anti Hepatitis B 2a", "TD 1a", "TD 2a", "TD 3a", "TD refuerzo", "TDPA 1a", "Influenza", "SR 1a", "SR 2a", "SR refuerzo", "Varicela", "Anti Hepatitis A", "COVID-19", "Anti Neumococica conjugada (refuerzo)", "Neumo 23", "Otra vacuna"],
         "Adulto Mayor. (60 y más años)": ["Anti Hepatitis B 1a", "Anti Hepatitis B 2a", "TD 1a", "TD 2a", "TD 3a", "TD refuerzo", "TDPA 1a", "Influenza", "SR 1a", "SR 2a", "SR refuerzo", "Varicela", "Anti Hepatitis A", "COVID-19", "Anti Neumococica conjugada (refuerzo)", "Neumo 23", "Otra vacuna"]
@@ -463,152 +452,143 @@
     function evaluarFlujoLogico() {
         const scrollY = window.scrollY;
 
-        // 1. Obtención de valores principales
-        const tActEl = document.getElementById('tipo_actividad');
-        const domEl = document.getElementById('domicilio_visitado');
-        const sDomEl = document.getElementById('situacion_domicilio');
-        const sNegEl = document.getElementById('situacion_negocio');
-
-        const tAct = tActEl ? tActEl.value : "";
-        const dom = domEl ? domEl.value : "";
-        const sDom = sDomEl ? sDomEl.value : "";
-        const sNeg = sNegEl ? sNegEl.value : "";
-
-        // 1B. REORDENAMIENTO VISUAL SEGURO (Solo mueve los contenedores en el DOM sin perder datos ni eventos)
-        const contenedorPrincipal = document.getElementById('formulario_maestro');
-        const bloqueDom = document.getElementById('bloque_domicilio');
-        const bloqueMapa = document.getElementById('bloque_mapa');
-        const bloqueCenso = document.getElementById('bloque_censo');
-        const tituloDom = bloqueDom ? bloqueDom.querySelector('h2') : null;
-
-        if (contenedorPrincipal && bloqueDom && bloqueMapa && bloqueCenso) {
-            if (tAct === 'modulo_fijo') {
-                // En Módulo Fijo: Primero Censo de Personas, luego Domicilio y Mapa
-                contenedorPrincipal.insertBefore(bloqueCenso, bloqueDom);
-                if (tituloDom) tituloDom.textContent = "Domicilio particular de la(s) persona(s)";
+        const listaPendientes = JSON.parse(localStorage.getItem('censia_bloqueos_pendientes') || '[]');
+        const selectEstado = document.getElementById('estado_bloqueo');
+        if (selectEstado) {
+            const optPendiente = selectEstado.querySelector('option[value="pendiente"]');
+            if (listaPendientes.length === 0) {
+                if(optPendiente) optPendiente.disabled = true;
+                if(selectEstado.value === 'pendiente') selectEstado.value = '';
             } else {
-                // En Barrido, Bloqueo o vacío: Orden original (Domicilio -> Mapa -> Censo)
-                contenedorPrincipal.insertBefore(bloqueCenso, bloqueMapa.nextSibling);
-                if (tituloDom) tituloDom.textContent = "2. Domicilio particular de la(s) persona(s)";
+                if(optPendiente) optPendiente.disabled = false;
             }
         }
 
-        // 2. Ocultar todos los bloques dependientes por defecto
-        const ids = [
-            'bloque_domicilio', 'bloque_censo', 'bloque_mapa', 
-            'seccion_bloqueo', 'metadatos_bloqueo', 'selector_bloqueos_pendientes', 
-            'grupo_pregunta_estado_bloqueo', 'grupo_lugar_fijo', 'grupo_domicilio_visitado', 
-            'grupo_situacion_domicilio', 'grupo_situacion_negocio', 'grupo_caso_domicilio', 
-            'nodo_cierre_bloqueo', 'campos_cierre_final', 'grupo_ref_modulo_fijo', 
-            'grupo_identificador_barrido'
-        ];
-        ids.forEach(id => { 
-            const el = document.getElementById(id); 
-            if (el) el.classList.add('oculto'); 
-        });
+        const tAct = document.getElementById('tipo_actividad') ? document.getElementById('tipo_actividad').value : "";
+        const dom = document.getElementById('domicilio_visitado') ? document.getElementById('domicilio_visitado').value : "";
+        const sDom = document.getElementById('situacion_domicilio') ? document.getElementById('situacion_domicilio').value : "";
+        const sNeg = document.getElementById('situacion_negocio') ? document.getElementById('situacion_negocio').value : "";
 
-        // Si no hay tipo de actividad seleccionado, detenemos aquí sin romper nada
-        if (!tAct) { 
-            window.scrollTo({ top: scrollY, behavior: 'instant' }); 
-            return; 
+        const ids = ['bloque_domicilio', 'bloque_censo', 'bloque_mapa', 'seccion_bloqueo', 'metadatos_bloqueo', 'selector_bloqueos_pendientes', 'grupo_pregunta_estado_bloqueo', 'grupo_lugar_fijo', 'grupo_domicilio_visitado', 'grupo_situacion_domicilio', 'grupo_situacion_negocio', 'grupo_caso_domicilio', 'nodo_cierre_bloqueo', 'campos_cierre_final', 'grupo_ref_modulo_fijo', 'grupo_identificador_barrido'];
+        ids.forEach(id => { const el = document.getElementById(id); if (el) el.classList.add('oculto'); });
+
+        const maestro = document.getElementById('formulario_maestro');
+        const bCenso = document.getElementById('bloque_censo');
+        const bDom = document.getElementById('bloque_domicilio');
+        const bMapa = document.getElementById('bloque_mapa');
+        const bCierre = document.getElementById('nodo_cierre_bloqueo');
+
+        // Blindaje de reordenamiento DOM: 
+        // - Módulo Fijo: Datos Generales -> Censo (Personas) -> Domicilio -> Mapa
+        // - Barrido / Bloqueo: Datos Generales -> Domicilio -> Mapa -> Censo (Personas)
+        try {
+            if (tAct === 'modulo_fijo') {
+                if (maestro && bCenso && bDom && bCenso.parentNode === maestro && bDom.parentNode === maestro) maestro.insertBefore(bCenso, bDom);
+                if (maestro && bDom && bMapa && bDom.parentNode === maestro && bMapa.parentNode === maestro) maestro.insertBefore(bMapa, null); // Manda el mapa al final o después del domicilio
+            } else {
+                if (maestro && bDom && bCenso && bDom.parentNode === maestro && bCenso.parentNode === maestro) maestro.insertBefore(bDom, bCenso);
+                if (maestro && bMapa && bCenso && bMapa.parentNode === maestro && bCenso.parentNode === maestro) maestro.insertBefore(bMapa, bCenso);
+            }
+        } catch(e) {
+            console.warn("Advertencia en reordenamiento DOM:", e);
         }
 
-        // 3. Despliegue condicional por tipo de actividad
+        if (!tAct) { window.scrollTo({ top: scrollY, behavior: 'instant' }); return; }
+
+        // Control de visibilidad para campos exclusivos post Tipo de Actividad
         if (tAct === 'modulo_fijo') {
             const elRef = document.getElementById('grupo_ref_modulo_fijo');
             if (elRef) elRef.classList.remove('oculto');
 
-            if (bloqueDom) bloqueDom.classList.remove('oculto');
-            if (bloqueCenso) bloqueCenso.classList.remove('oculto');
-            if (bloqueMapa) bloqueMapa.classList.remove('oculto');
+            document.getElementById('bloque_domicilio').classList.remove('oculto');
+            document.getElementById('bloque_censo').classList.remove('oculto');
+            document.getElementById('bloque_mapa').classList.remove('oculto');
 
-            if (document.querySelectorAll('.tarjeta-persona').length === 0 && typeof agregarPersona === 'function') {
-                agregarPersona();
-            }
-        } 
-        else if (tAct === 'barrido' || tAct === 'bloqueo') {
-            const gLugarFijo = document.getElementById('grupo_lugar_fijo');
-            const gDomVis = document.getElementById('grupo_domicilio_visitado');
-
-            if (bloqueDom) bloqueDom.classList.remove('oculto');
-            if (gLugarFijo) gLugarFijo.classList.remove('oculto');
-            if (gDomVis) gDomVis.classList.remove('oculto');
-            if (bloqueMapa) bloqueMapa.classList.remove('oculto');
-
-            if (tAct === 'barrido') {
-                const elIdBarrido = document.getElementById('grupo_identificador_barrido');
-                if (elIdBarrido) elIdBarrido.classList.remove('oculto');
-            }
-
-            if (tAct === 'bloqueo') {
-                const secBloqueo = document.getElementById('seccion_bloqueo');
-                if (secBloqueo) secBloqueo.classList.remove('oculto');
-                
-                const selectEstado = document.getElementById('estado_bloqueo');
-                if (selectEstado && selectEstado.value === "") {
-                    selectEstado.value = 'nuevo';
-                    if (typeof gestionarEstadoBloqueo === 'function') gestionarEstadoBloqueo();
+            if (document.querySelectorAll('.tarjeta-persona').length === 0) agregarPersona();
+            setTimeout(() => {
+                if(mapaInteractivo) {
+                    mapaInteractivo.invalidateSize();
+                } else if (typeof inicializarMapaDefecto === 'function') {
+                    inicializarMapaDefecto();
                 }
+            }, 200);
+            window.scrollTo({ top: scrollY, behavior: 'instant' });
+            return;
+        }
 
-                const gCasoDom = document.getElementById('grupo_caso_domicilio');
-                if (dom === 'casa' && gCasoDom) gCasoDom.classList.remove('oculto');
-            }
+        if (tAct === 'barrido') {
+            const elIdBarrido = document.getElementById('grupo_identificador_barrido');
+            if (elIdBarrido) elIdBarrido.classList.remove('oculto');
+        }
 
-            // Evaluación de sub-niveles de domicilio
-            if (dom === 'casa') {
-                const gSitDom = document.getElementById('grupo_situacion_domicilio');
-                if (gSitDom) gSitDom.classList.remove('oculto');
-            } else if (dom === 'negocio') {
-                const gSitNeg = document.getElementById('grupo_situacion_negocio');
-                if (gSitNeg) gSitNeg.classList.remove('oculto');
+        if (tAct === 'bloqueo') {
+            document.getElementById('seccion_bloqueo').classList.remove('oculto');
+            if (listaPendientes.length === 0 && document.getElementById('estado_bloqueo').value === "") {
+                document.getElementById('estado_bloqueo').value = 'nuevo';
+                if (typeof gestionarEstadoBloqueo === 'function') gestionarEstadoBloqueo();
+            } else if (listaPendientes.length > 0 && document.getElementById('id_bloqueo').value === "") {
+                document.getElementById('grupo_pregunta_estado_bloqueo').classList.remove('oculto');
+            } else if (document.getElementById('id_bloqueo').value !== "") {
+                document.getElementById('metadatos_bloqueo').classList.remove('oculto');
             }
         }
 
-        // 4. Validación de apertura del censo de personas
-        let censoHabilitado = (sDom === 'CN' || sDom === 'SN_REG' || sNeg === 'N_CON' || tAct === 'modulo_fijo');
-        
-        if (censoHabilitado) {
-            if (bloqueCenso) bloqueCenso.classList.remove('oculto');
-            if (document.querySelectorAll('.tarjeta-persona').length === 0 && typeof agregarPersona === 'function') {
-                agregarPersona();
+        if (tAct === 'barrido' || tAct === 'bloqueo') {
+            document.getElementById('bloque_domicilio').classList.remove('oculto');
+            document.getElementById('grupo_lugar_fijo').classList.remove('oculto');
+            document.getElementById('grupo_domicilio_visitado').classList.remove('oculto');
+            document.getElementById('bloque_mapa').classList.remove('oculto'); // El mapa se muestra enseguida del domicilio
+
+            const elRef = document.getElementById('grupo_ref_modulo_fijo');
+            if (elRef) elRef.classList.add('oculto');
+            const elLugarFijo = document.getElementById('lugar_fijo');
+            if (elLugarFijo) elLugarFijo.value = "";
+
+            setTimeout(() => {
+                if(mapaInteractivo) {
+                    mapaInteractivo.invalidateSize();
+                } else if (typeof inicializarMapaDefecto === 'function') {
+                    inicializarMapaDefecto();
+                }
+            }, 200);
+
+            if (dom === 'casa') {
+                document.getElementById('grupo_situacion_domicilio').classList.remove('oculto');
+                if (tAct === 'bloqueo') document.getElementById('grupo_caso_domicilio').classList.remove('oculto');
+            } else if (dom === 'negocio') {
+                document.getElementById('grupo_situacion_negocio').classList.remove('oculto');
             }
+        }
+
+        let censo = (sDom === 'CN' || sDom === 'SN_REG' || sNeg === 'N_CON');
+        if (censo) {
+            document.getElementById('bloque_censo').classList.remove('oculto');
+            if (document.querySelectorAll('.tarjeta-persona').length === 0) agregarPersona();
         } else {
-            if (bloqueCenso) bloqueCenso.classList.add('oculto');
+            document.getElementById('bloque_censo').classList.add('oculto');
             const contPer = document.getElementById('contenedor_personas');
             if (contPer) contPer.innerHTML = '';
-            if (typeof personaId !== 'undefined') personaId = 0;
+            personaId = 0;
         }
 
-        // 5. Nodo de cierre para bloqueos
         if (tAct === 'bloqueo' && dom !== "") {
             const bCierre = document.getElementById('nodo_cierre_bloqueo');
             if (bCierre) bCierre.classList.remove('oculto');
         }
 
-        // 6. Restricción de Caso Índice exclusivamente para Bloqueos
         const esBloqueoActivo = (tAct === 'bloqueo');
         document.querySelectorAll('.tarjeta-persona').forEach(t => {
             const pId = t.id.split('_').pop();
             const divCaso = document.getElementById(`contenedor_caso_indice_${pId}`);
             if (divCaso) {
-                if (esBloqueoActivo) {
-                    divCaso.classList.remove('oculto');
-                } else {
+                if (esBloqueoActivo) divCaso.classList.remove('oculto');
+                else {
                     divCaso.classList.add('oculto');
                     const chk = document.getElementById(`caso_indice_${pId}`);
-                    if (chk) chk.checked = false;
+                    if (chk) chk.checked = false; // Limpia la selección si cambia de actividad
                 }
             }
         });
-
-        // 7. Refresco seguro del mapa si está visible
-        setTimeout(() => {
-            if (typeof mapaInteractivo !== 'undefined' && mapaInteractivo !== null) {
-                mapaInteractivo.invalidateSize();
-            } else if (typeof inicializarMapaDefecto === 'function') {
-                inicializarMapaDefecto();
-            }
-        }, 200);
 
         window.scrollTo({ top: scrollY, behavior: 'instant' });
     }
@@ -1453,6 +1433,13 @@
                                  <span style="color: #334155; font-size: 0.9em; display:block; margin-top:4px;"><b>Tipo:</b> ${p.dom || 'N/D'}</span>
                                  <span style="color: #475569; font-size: 0.85em; display:block; margin-top:4px;">👤 Registró: ${p.registrador_nombre || 'S/D'} (${p.registrador_institucion || '-'})</span>
                                  <span style="color: #0f172a; font-size: 0.95em; font-weight: bold; background-color: ${esCasoIndice ? '#fee2e2' : '#f1f5f9'}; padding: 2px 4px; border-radius: 3px; display:inline-block; margin-top:4px;">Estatus: ${etiquetaEstatus}</span>`);
+                                /* .addTo(mapaInteractivo)
+                                 .bindPopup(`<b style="color: ${esCasoIndice ? '#dc2626' : '#0f172a'}; font-size: 1.1em; border-bottom: 1px solid #cbd5e1; display:block; padding-bottom:3px; margin-bottom:5px;">${esCasoIndice ? '🚨 CASO ÍNDICE' : 'Acciones realizadas'}</b>
+                                             <span style="color: #2563eb; font-weight: bold; font-size: 0.9em; display:block; margin-bottom:4px;">📅 Fecha: ${fechaCorta}</span>
+                                             <span style="color: #475569; font-size: 0.9em;"><b>Dirección:</b> ${p.calle || 'S/D'}, Col. ${p.colonia || 'S/D'}</span><br>
+                                             <span style="color: #334155; font-size: 0.9em; display:block; margin-top:4px;"><b>Tipo:</b> ${p.domicilio || 'N/D'}</span>
+                                             <span style="color: #475569; font-size: 0.85em; display:block; margin-top:4px;">👤 Registró: ${p.registrador_nombre || 'N/D'} (${p.registrador_institucion || '-'})</span>
+                                             <span style="color: #0f172a; font-size: 0.95em; font-weight: bold; background-color: ${esCasoIndice ? '#fee2e2' : '#f1f5f9'}; padding: 2px 4px; border-radius: 3px; display:inline-block; margin-top:4px;">Estatus: ${etiquetaEstatus}</span>`);*/
                             }
             });
 
